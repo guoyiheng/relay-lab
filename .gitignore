@@ -1,0 +1,19 @@
+.DS_Store
+node_modules
+.nuxt
+.output
+.data
+.wrangler
+.env
+.env.local
+*.log
+dist
+
+# 内部开发内容，不随公开项目发布
+todo.md
+CLAUDE.md
+relay-lab.session.sql
+.vscode
+.claude
+.alma-snapshots
+backups/

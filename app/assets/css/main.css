@@ -1,0 +1,195 @@
+/* Tailwind v4 + @nuxt/ui v4 入口。原 tailwind.config.ts 的主题（wfblue 色阶、字体、
+   圆角、阴影）已迁到本文件的 @theme；语义 token（--c-*）与自定义工具类保持不变。 */
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* 类名驱动的深色模式（.dark on <html>），非系统媒体查询。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 设计主题：色阶 / 字体 / 圆角 / 字距 / 阴影。primary 语义色在 app.config.ts 指到 wfblue。
+   ⚠️ 必须用 @theme static：Tailwind v4 会 tree-shake 掉「源码里没被静态引用」的主题变量，
+   而 wfblue 色阶只被 @nuxt/ui 的 colors 插件在【运行时】用 var(--color-wfblue-N) 引用
+   （primary→wfblue 的映射经 useHead 注入，构建期扫不到）→ 普通 @theme 下 11 档色阶全被裁剪，
+   --ui-color-primary-* 解析为空，所有 primary-* / color="primary" 失色。static 关掉裁剪即修复。
+   （Nuxt3+Tailwind v3 时代 tailwind.config.ts 的 colors 恒定输出，无此问题，迁移后才暴露。） */
+@theme static {
+  --color-wfblue-50: #f5f3ff;
+  --color-wfblue-100: #ede9fe;
+  --color-wfblue-200: #ddd6fe;
+  --color-wfblue-300: #c4b5fd;
+  --color-wfblue-400: #a78bfa;
+  --color-wfblue-500: #8b5cf6;
+  --color-wfblue-600: #7c3aed;
+  --color-wfblue-700: #6d28d9;
+  --color-wfblue-800: #5b21b6;
+  --color-wfblue-900: #4c1d95;
+  --color-wfblue-950: #2e1065;
+
+  --font-sans: "WF Visual Sans Variable", "Inter", "PingFang SC", "HarmonyOS Sans", system-ui, Arial, sans-serif;
+  --font-display: "WF Visual Sans Variable", "Inter", system-ui, Arial, sans-serif;
+  --font-mono: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-DEFAULT: 4px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  --tracking-tightish: -0.16px;
+  --tracking-ucase: 1.5px;
+
+  --shadow-wf: 0 84px 24px rgba(0,0,0,0), 0 54px 22px rgba(0,0,0,0.01), 0 30px 18px rgba(0,0,0,0.04), 0 13px 13px rgba(0,0,0,0.08), 0 3px 7px rgba(0,0,0,0.09);
+}
+
+:root {
+  color-scheme: light;
+  /* Nuxt UI v4 组件统一圆角（原各处 :ui="{ rounded }" 已撤，由此 token 统一控制）。 */
+  --ui-radius: 4px;
+  /* ── 语义色 token（单一来源；下方 .dark 覆盖）。组件不写裸 hex，一律 var(--c-*)。 */
+  --c-fg: #080808;        /* primary text */
+  --c-fg-2: #222222;      /* strong secondary text */
+  --c-fg-3: #363636;      /* secondary text */
+  --c-fg-4: #5a5a5a;      /* muted text / labels */
+  --c-fg-5: #898989;      /* hover hint border / faint text */
+  --c-fg-6: #9b9b9b;      /* fainter */
+  --c-fg-7: #ababab;      /* placeholder / disabled */
+  --c-border: #d8d8d8;    /* default border */
+  --c-border-2: #e5e5e5;  /* subtle border / divider */
+  --c-surface: #ffffff;   /* card / input background */
+  --c-surface-2: #f7f7f8; /* gray-50 equivalent (soft panel) */
+  --c-surface-3: #efeff1; /* gray-100 */
+  --c-bg: #ffffff;        /* app background */
+}
+
+.dark {
+  color-scheme: dark;
+  --c-fg: #f4f4f5;
+  --c-fg-2: #e4e4e7;
+  --c-fg-3: #d4d4d8;
+  --c-fg-4: #a1a1aa;
+  --c-fg-5: #71717a;
+  --c-fg-6: #8b8b94;
+  --c-fg-7: #6b6b73;
+  --c-border: #34343a;
+  --c-border-2: #2a2a30;
+  --c-surface: #1c1c20;
+  --c-surface-2: #232329;
+  --c-surface-3: #2c2c33;
+  --c-bg: #131316;
+}
+
+/* PLACEHOLDER_UTILITIES */
+
+/* 两态分段切换（创作区 表单/JSON、网络 JSON/cURL 等） */
+.seg-toggle {
+  @apply inline-flex items-center gap-0.5 rounded-[4px] border border-[var(--c-border)] bg-[var(--c-surface)] p-0.5;
+}
+.seg-btn {
+  @apply rounded-[3px] px-2.5 py-0.5 text-[12px] font-medium text-[var(--c-fg-4)] transition;
+}
+.seg-btn:hover { @apply text-[var(--c-fg)]; }
+.seg-btn-active { @apply bg-primary-50 text-primary-700; }
+.seg-btn-active:hover { @apply text-primary-700; }
+
+html, body, #__nuxt {
+  height: 100%;
+  background: var(--c-bg);
+  color: var(--c-fg);
+}
+body {
+  @apply font-sans antialiased text-[16px];
+  letter-spacing: -0.16px;
+  line-height: 1.6;
+}
+
+/* 深色下柔化近白的 primary 浅色调（primary-50/100），避免在深色面板上刺眼。 */
+.dark .bg-primary-50 { background-color: rgba(139, 92, 246, 0.14) !important; }
+.dark .bg-primary-100 { background-color: rgba(139, 92, 246, 0.2) !important; }
+.dark .text-primary-700 { color: #c4b5fd !important; }
+.dark .text-primary-800 { color: #ddd6fe !important; }
+.dark .text-primary-600 { color: #c4b5fd !important; }
+.dark .border-primary-200 { border-color: rgba(139, 92, 246, 0.35) !important; }
+.dark .border-primary-400 { border-color: rgba(139, 92, 246, 0.5) !important; }
+.dark .border-primary-500 { border-color: rgba(167, 139, 250, 0.7) !important; }
+.dark .bg-primary-50\/40 { background-color: rgba(139, 92, 246, 0.1) !important; }
+.dark .hover\:bg-primary-50:hover { background-color: rgba(139, 92, 246, 0.16) !important; }
+.dark .hover\:text-primary-700:hover { color: #c4b5fd !important; }
+.dark .hover\:border-primary-400:hover { border-color: rgba(139, 92, 246, 0.5) !important; }
+.dark .active\:bg-primary-100:active { background-color: rgba(139, 92, 246, 0.28) !important; }
+.dark .hover\:bg-gray-100:hover { background-color: var(--c-surface-3) !important; }
+.dark .hover\:bg-gray-50:hover { background-color: var(--c-surface-2) !important; }
+
+/* 卡片 / 面板 */
+.surface { @apply rounded-[8px] border border-[var(--c-border)] bg-[var(--c-surface)]; }
+.surface-soft { @apply rounded-[4px] border border-[var(--c-border-2)] bg-[var(--c-surface)]; }
+.divider { @apply border-t border-[var(--c-border)]; }
+
+/* 表单（NuxtUI 输入之外的兜底样式） */
+.field-label { @apply block text-[14px] font-medium text-[var(--c-fg-2)] mb-1.5; }
+.field-label.required::after { content: ' *'; @apply text-red-500; }
+.field-hint { @apply mt-1 text-[13px] text-[var(--c-fg-4)]; }
+
+/* 标题辅助类 */
+.h-section {
+  @apply font-display text-[32px] font-semibold leading-[1.04] text-[var(--c-fg)];
+  letter-spacing: -0.32px;
+}
+.h-sub { @apply font-display text-[20px] font-medium leading-[1.3] text-[var(--c-fg)]; }
+.label-uppercase { @apply text-[12px] font-semibold uppercase tracking-[1px] text-[var(--c-fg-4)]; }
+
+/* KV 行 */
+.kv { @apply flex items-baseline gap-3 py-1.5; }
+.kv-key { @apply text-[12px] font-medium text-[var(--c-fg-4)] min-w-[110px]; }
+.kv-val { @apply text-[14px] text-[var(--c-fg)] break-all; }
+
+/* 滚动条 */
+.scroll-area { scrollbar-width: thin; scrollbar-color: rgba(8, 8, 8, 0.2) transparent; }
+.scroll-area::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-area::-webkit-scrollbar-thumb { background: rgba(8, 8, 8, 0.18); border-radius: 4px; }
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+
+.prompt-textarea { transition: min-height 280ms cubic-bezier(0.32, 0.72, 0.24, 1); }
+
+/* 行内动作链接：link-action 中性→hover主色，link-danger 危险→hover红，link-muted 安静 */
+.link-action { @apply text-[12px] text-[var(--c-fg-4)] transition hover:text-primary-500; }
+.link-danger { @apply text-[12px] text-[var(--c-fg-4)] transition hover:text-red-600; }
+.link-muted { @apply text-[12px] text-[var(--c-fg-7)] transition hover:text-[var(--c-fg-2)]; }
+
+/* 紧凑动作按钮：pill-btn 带边框中性、pill-btn-icon 方形图标、pill-btn-active 选中态 */
+.pill-btn {
+  @apply inline-flex h-7 items-center gap-1 rounded-[5px] border border-[var(--c-border)] bg-[var(--c-surface)] px-2 text-[12px] text-[var(--c-fg-4)] transition;
+  @apply hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700;
+  @apply active:scale-95 active:bg-primary-100;
+  @apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--c-border)] disabled:hover:bg-[var(--c-surface)] disabled:hover:text-[var(--c-fg-4)] disabled:active:scale-100;
+}
+.pill-btn-icon {
+  @apply grid h-7 w-7 place-items-center rounded-[5px] border border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-4)] transition;
+  @apply hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700;
+  @apply active:scale-90 active:bg-primary-100;
+  @apply disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100;
+}
+.pill-btn-active { @apply border-primary-400 bg-primary-50 text-primary-700; }
+.pill-btn-danger { @apply hover:border-red-300 hover:bg-red-50 hover:text-red-600 active:bg-red-100; }
+.link-action, .link-danger, .link-muted { @apply transition active:scale-95; }
+.icon-btn-ghost {
+  @apply grid h-7 w-7 place-items-center rounded-[5px] text-[var(--c-fg-4)] transition;
+  @apply hover:bg-[var(--c-surface-3)] hover:text-[var(--c-fg)] active:scale-90 active:bg-[var(--c-surface-3)];
+}
+.icon-btn-ghost-active { @apply bg-primary-50 text-primary-700; }
+
+/* highlight.js 代码高亮（双主题，GitHub 风格紧凑配色） */
+.hljs { color: var(--c-fg); background: transparent; }
+.hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-type, .hljs-name { color: #d73a49; }
+.hljs-title, .hljs-title.class_, .hljs-title.function_, .hljs-section { color: #6f42c1; }
+.hljs-attr, .hljs-attribute, .hljs-literal, .hljs-number, .hljs-meta, .hljs-selector-id, .hljs-selector-class { color: #005cc5; }
+.hljs-string, .hljs-regexp, .hljs-symbol, .hljs-bullet, .hljs-addition { color: #032f62; }
+.hljs-built_in, .hljs-class .hljs-title { color: #e36209; }
+.hljs-deletion { color: #b31d28; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+.dark .hljs-comment, .dark .hljs-quote { color: #8b949e; }
+.dark .hljs-keyword, .dark .hljs-selector-tag, .dark .hljs-doctag, .dark .hljs-type, .dark .hljs-name { color: #ff7b72; }
+.dark .hljs-title, .dark .hljs-title.class_, .dark .hljs-title.function_, .dark .hljs-section { color: #d2a8ff; }
+.dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-literal, .dark .hljs-number, .dark .hljs-meta, .dark .hljs-selector-id, .dark .hljs-selector-class { color: #79c0ff; }
+.dark .hljs-string, .dark .hljs-regexp, .dark .hljs-symbol, .dark .hljs-bullet, .dark .hljs-addition { color: #a5d6ff; }
+.dark .hljs-built_in, .dark .hljs-class .hljs-title { color: #ffa657; }

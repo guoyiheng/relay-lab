@@ -1,0 +1,142 @@
+{
+	// Relay Lab · Cloudflare Worker 部署配置（唯一部署配置来源）
+	// ─────────────────────────────────────────────────────────────────────────
+	// 这里是所有 Cloudflare 资源与部署设置的集中入口：binding（D1/R2/Queues）、
+	// 兼容性、路由域名、公开域。Nitro 的 cloudflare_module 预设直接读本文件，
+	// 本地 nuxt dev 也用它做 binding 注入。改部署相关配置只需动这一个文件。
+	//
+	// 部署方式：Cloudflare Workers Builds（连 Git，push 到默认分支自动构建部署）。
+	//   一次性在面板绑定仓库即可，之后 `git push` = 自动上线。
+	//
+	// 本地开发直连线上数据：下方 D1 与 R2 binding 都开了 experimental_remote，
+	//   `npm run dev` 会连真实的线上 D1/R2，本地看到的数据与线上完全一致。
+	//   ⚠️ 本地读写即生产读写，无隔离——本地误删/脏数据会直接进线上，务必小心。
+	//   需先 `npx wrangler login`（或设 CLOUDFLARE_API_TOKEN）授权到你的账户。
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "relay-lab",
+	"compatibility_date": "2024-11-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"version_metadata": {
+		"binding": "CF_VERSION_METADATA"
+	},
+	// 保留每个 Worker Version 的 workers.dev 预览地址，便于在不进入生产流量的情况下做隔离验收。
+	"preview_urls": true,
+	// 将 Worker 执行位置锚定在新加坡附近（AWS ap-southeast-1），与当前位于
+	// APAC/新加坡的 D1 数据侧靠拢，避免一条请求内的多次 SQL 跨区域往返。
+	// 用户仍从最近的 Cloudflare 边缘接入；这里只改变 Worker 的实际执行位置。
+	"placement": {
+		"region": "aws:ap-southeast-1"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "relay-lab",
+			"database_id": "e66b9f0c-c6c3-42be-937f-a9f5dd4fe702",
+			"migrations_dir": "migrations",
+			// 本地 dev 直连线上 D1（remote bindings GA，需 wrangler 认证）。
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "relay-lab-assets",
+			// 本地 dev 直连线上 R2。关掉它则回到本地模拟桶。
+			"remote": true
+		}
+	],
+	// 任务轮询队列：run.post 生产消息，本 Worker 自身作消费者驱动「提交→单次轮询→
+	// 未终态带 delay 重新入队」，替代无法在 Workers 上长活的 fire-and-forget 轮询。
+	// 需 Workers 付费版。本地 nuxt dev 不触发消费者，dev 走进程内轮询（import.meta.dev）。
+	// 非 xxn 用户素材每小时检查一次；utility 内部按 7 天期限筛选并限量处理。
+	"triggers": {
+		"crons": ["17 * * * *"]
+	},
+	"queues": {
+		"producers": [
+			{
+				"binding": "TASK_QUEUE",
+				"queue": "relay-lab-tasks"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "relay-lab-tasks",
+				// 同步/text 任务单条可能占用 5 分钟；consumer 当前逐条处理，batch=1 可避免
+				// 第二条任务在同一批次内被前一条阻塞数分钟，并把每次消费控制在单任务范围。
+				"max_batch_size": 1,
+				"max_batch_timeout": 5,
+				"max_retries": 3,
+				"dead_letter_queue": "relay-lab-tasks-dlq"
+			}
+		]
+	},
+	// 公开离线代理与登录端点使用 Worker 原生限速。namespace_id 必须在当前
+	// Cloudflare 账户内唯一；计数按 Cloudflare location 执行，代码层缺 binding 时生产拒绝请求。
+	"ratelimits": [
+		{
+			"name": "OFFLINE_PROXY_HEAVY_RATE_LIMITER",
+			"namespace_id": "726101",
+			"simple": { "limit": 20, "period": 60 }
+		},
+		{
+			"name": "OFFLINE_PROXY_POLL_RATE_LIMITER",
+			"namespace_id": "726102",
+			"simple": { "limit": 120, "period": 60 }
+		},
+		{
+			"name": "OFFLINE_PROXY_FETCH_RATE_LIMITER",
+			"namespace_id": "726103",
+			"simple": { "limit": 30, "period": 60 }
+		},
+		{
+			"name": "AUTH_LOGIN_RATE_LIMITER",
+			"namespace_id": "726104",
+			"simple": { "limit": 10, "period": 60 }
+		},
+		{
+			"name": "AUTH_PUBLIC_RATE_LIMITER",
+			"namespace_id": "726105",
+			"simple": { "limit": 30, "period": 60 }
+		},
+		{
+			"name": "OFFLINE_PROXY_HEAVY_GLOBAL_RATE_LIMITER",
+			"namespace_id": "726106",
+			"simple": { "limit": 120, "period": 60 }
+		},
+		{
+			"name": "OFFLINE_PROXY_POLL_GLOBAL_RATE_LIMITER",
+			"namespace_id": "726107",
+			"simple": { "limit": 1200, "period": 60 }
+		},
+		{
+			"name": "OFFLINE_PROXY_FETCH_GLOBAL_RATE_LIMITER",
+			"namespace_id": "726108",
+			"simple": { "limit": 60, "period": 60 }
+		},
+		{
+			"name": "AUTH_PUBLIC_GLOBAL_RATE_LIMITER",
+			"namespace_id": "726109",
+			"simple": { "limit": 120, "period": 60 }
+		}
+	],
+	// 生成图片/视频与参考素材对外直连的公开域（在 R2 面板绑定后生效）。
+	// 服务端拼 URL 用它，本地未绑定时回退到 /uploads 代理路由。
+	"vars": {
+		"R2_PUBLIC_BASE": "https://assets.relay.yiheng.run",
+		"PUBLIC_APP_URL": "https://relay.yiheng.run"
+	},
+	// 上线时打开：把 Worker 绑到主域名
+	"routes": [
+		{
+			"pattern": "relay.yiheng.run",
+			"custom_domain": true
+		}
+	]
+	// workflows binding 在第 5 步（TaskWorkflow / AnalysisWorkflow）引入后再加
+}
