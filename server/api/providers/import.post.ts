@@ -1,7 +1,8 @@
 import { useDb, type ApiFormat } from '~~/server/utils/db'
 import { requireUserId } from '~~/server/utils/auth'
+import { normalizeProviderUrl } from '~~/shared/provider-url'
 
-const VALID: ApiFormat[] = ['openai-sync', 'openai-async', 'xai-image', 'doubao-video']
+const VALID: ApiFormat[] = ['openai-sync', 'openai-async', 'xai-image', 'doubao-video', 'full-url']
 
 export default defineEventHandler(async (event) => {
   const userId = requireUserId(event)
@@ -52,9 +53,9 @@ export default defineEventHandler(async (event) => {
   for (const p of providersData) {
     try {
       const name = p.name.trim()
-      const base_url = p.base_url.trim().replace(/\/+$/, '')
       const api_key = (p.api_key || '').trim()
       const api_format = p.api_format
+      const base_url = normalizeProviderUrl(p.base_url, api_format)
       const ark_access_key = (p.ark_access_key || '').trim() || null
       const ark_secret_key = (p.ark_secret_key || '').trim() || null
       const ark_region = (p.ark_region || '').trim() || null

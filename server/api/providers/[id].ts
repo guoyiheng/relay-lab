@@ -1,8 +1,9 @@
 import { useDb, type ProviderRecord, type ApiFormat } from '~~/server/utils/db'
 import { serializeProvider } from '~~/server/utils/serialize'
 import { requireUserId } from '~~/server/utils/auth'
+import { normalizeProviderUrl } from '~~/shared/provider-url'
 
-const VALID: ApiFormat[] = ['openai-sync', 'openai-async', 'xai-image', 'doubao-video']
+const VALID: ApiFormat[] = ['openai-sync', 'openai-async', 'xai-image', 'doubao-video', 'full-url']
 
 export default defineEventHandler(async (event) => {
   const userId = requireUserId(event)
@@ -44,7 +45,8 @@ export default defineEventHandler(async (event) => {
       values.push(name)
     }
     if (body?.base_url !== undefined) {
-      const base_url = body.base_url.trim().replace(/\/+$/, '')
+      const nextFormat = (body.api_format as ApiFormat | undefined) || existing.api_format
+      const base_url = normalizeProviderUrl(body.base_url, nextFormat)
       if (!base_url) throw createError({ statusCode: 400, statusMessage: 'Base URL 不能为空' })
       updates.push('base_url = ?')
       values.push(base_url)

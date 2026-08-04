@@ -1,4 +1,4 @@
-export type ApiFormat = 'openai-sync' | 'openai-async' | 'xai-image' | 'doubao-video'
+export type ApiFormat = 'openai-sync' | 'openai-async' | 'xai-image' | 'doubao-video' | 'full-url'
 export type ModelKind = 'image' | 'video' | 'text'
 // per_mtoken_video: 按量计费，但按"输入是否含视频"分两档单价（Seedance）。
 export type PriceMode = 'per_call' | 'per_mtoken' | 'per_mtoken_video'

@@ -1,4 +1,5 @@
 import type { ApiFormat, ModelKind } from '~~/types/api'
+import { taskEndpoint } from '~~/shared/task-curl'
 
 export interface ReferenceAsset {
   kind: 'image' | 'video' | 'audio'
@@ -547,6 +548,7 @@ export function adapterLabel(format: ApiFormat): string {
   if (format === 'openai-async') return 'OpenAI 兼容 · 异步'
   if (format === 'xai-image') return 'xAI Imagine · 图片'
   if (format === 'doubao-video') return 'Doubao / Seedance · 视频'
+  if (format === 'full-url') return '完整 URL · 直连'
   return format
 }
 
@@ -732,6 +734,10 @@ export async function runAdapter(format: ApiFormat, ctx: AdapterContext): Promis
     throw new Error(`API 协议 ${format} 不支持 ${ctx.kind} 模型`)
   }
   if (format === 'openai-sync') return runOpenAISync(ctx)
+  if (format === 'full-url') {
+    const payload = buildRequestPayload(format, ctx)
+    return runPreparedSyncTask({ format, baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: ctx.kind, payload })
+  }
   if (format === 'xai-image') return runXAIImageSync(ctx)
   if (format === 'openai-async') return runOpenAIAsync(ctx)
   if (format === 'doubao-video') return runDoubaoVideo(ctx)
@@ -746,7 +752,7 @@ async function runChatText(ctx: AdapterContext): Promise<AdapterResult> {
 }
 
 // Execute the exact request payload persisted on the task row. Queue consumers use
-// this path for text/openai-sync/xai-image jobs so the HTTP request can return immediately
+// this path for text/openai-sync/xai-image/full-url jobs so the HTTP request can return immediately
 // without relying on a five-minute provider call surviving inside waitUntil().
 export async function runPreparedSyncTask(ctx: {
   format: ApiFormat
@@ -756,14 +762,8 @@ export async function runPreparedSyncTask(ctx: {
   payload: Record<string, unknown>
 }): Promise<AdapterResult> {
   const isText = ctx.kind === 'text'
-  const isXAIImage = ctx.format === 'xai-image'
-  const isXAIEdit = isXAIImage && (!!ctx.payload.image || Array.isArray(ctx.payload.images))
-  const path = isText
-    ? 'chat/completions'
-    : isXAIImage
-      ? (isXAIEdit ? 'images/edits' : 'images/generations')
-      : `${resourcePath(ctx.kind)}/generations`
-  const url = joinUrl(ctx.baseUrl, path)
+  const url = taskEndpoint({ kind: ctx.kind, api_format: ctx.format, request_payload: ctx.payload }, ctx.baseUrl)?.url
+  if (!url) throw new Error('缺少上游 URL')
   try {
     const resp = await $fetch<any>(url, {
       method: 'POST',

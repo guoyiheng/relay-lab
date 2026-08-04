@@ -2,6 +2,7 @@
 // 任务详情：概览（参数/成本/提示词）与网络（请求+响应，按 phase 分块）两种视图。
 // 也做预览模式（任务列表 hover 卡）的只读精简版。分析结果轮询回传由父层写回 store。
 import type { TaskRow } from '~~/types/api'
+import { taskEndpoint } from '~~/shared/task-curl'
 import { usePromptFavorites } from '~/composables/usePromptFavorites'
 
 const props = defineProps<{ task: TaskRow; mode: 'overview' | 'network'; preview?: boolean }>()
@@ -186,6 +187,7 @@ const formatLabel = computed(() => {
   if (props.task.api_format === 'openai-async') return 'OpenAI 兼容 · 异步'
   if (props.task.api_format === 'xai-image') return 'xAI Imagine · 图片'
   if (props.task.api_format === 'doubao-video') return 'Seedance官方 · 异步'
+  if (props.task.api_format === 'full-url') return '完整 URL · 直连'
   return props.task.api_format
 })
 
@@ -202,33 +204,8 @@ const totalRefs = computed(() => {
   return r.image.length + r.video.length + r.audio.length
 })
 
-// Derive the upstream endpoint the adapter actually called. Mirrors
-// server/utils/adapters.ts so the curl preview matches what hit the provider.
-function joinUrl(base: string, p: string): string {
-  if (!base) return p
-  return base.replace(/\/+$/, '') + '/' + p.replace(/^\/+/, '')
-}
-
-const requestEndpoint = computed<{ method: string; url: string } | null>(() => {
-  const t = props.task
-  const base = t.provider_base_url
-  if (!base) return null
-  if (t.kind === 'text') return { method: 'POST', url: joinUrl(base, 'chat/completions') }
-  const resource = t.kind === 'image' ? 'images' : 'videos'
-  if (t.api_format === 'doubao-video') {
-    return { method: 'POST', url: joinUrl(base, 'contents/generations/tasks') }
-  }
-  if (t.api_format === 'openai-async') {
-    return { method: 'POST', url: joinUrl(base, `${resource}/generations`) + '?async=true' }
-  }
-  if (t.api_format === 'xai-image') {
-    const payload = t.request_payload as Record<string, unknown> | null
-    const isEdit = !!payload?.image || Array.isArray(payload?.images)
-    return { method: 'POST', url: joinUrl(base, isEdit ? 'images/edits' : 'images/generations') }
-  }
-  // openai-sync (default)
-  return { method: 'POST', url: joinUrl(base, `${resource}/generations`) }
-})
+// 与实际适配器和服务端 curl 共用同一份端点规则。
+const requestEndpoint = computed(() => taskEndpoint(props.task, props.task.provider_base_url || ''))
 
 // curl text comes from the server (so the real API key is filled in, paste-and-run).
 // Refetched when the task id / payload changes or when 网络 tab is opened.

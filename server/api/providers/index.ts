@@ -1,8 +1,9 @@
 import { useDb, type ProviderRecord, type ModelRecord, type ApiFormat } from '~~/server/utils/db'
 import { serializeProvider, serializeModel } from '~~/server/utils/serialize'
 import { requireUserId } from '~~/server/utils/auth'
+import { normalizeProviderUrl } from '~~/shared/provider-url'
 
-const VALID: ApiFormat[] = ['openai-sync', 'openai-async', 'xai-image', 'doubao-video']
+const VALID: ApiFormat[] = ['openai-sync', 'openai-async', 'xai-image', 'doubao-video', 'full-url']
 
 export default defineEventHandler(async (event) => {
   const userId = requireUserId(event)
@@ -56,9 +57,9 @@ export default defineEventHandler(async (event) => {
       ark_project_name?: string | null
     }>(event)
     const name = (body?.name || '').trim()
-    const base_url = (body?.base_url || '').trim().replace(/\/+$/, '')
     const api_key = (body?.api_key || '').trim()
     const api_format = body?.api_format as ApiFormat
+    const base_url = normalizeProviderUrl(body?.base_url || '', api_format)
     const ark_access_key = (body?.ark_access_key || '').trim() || null
     const ark_secret_key = (body?.ark_secret_key || '').trim() || null
     const ark_region = (body?.ark_region || '').trim() || null

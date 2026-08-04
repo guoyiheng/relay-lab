@@ -31,11 +31,49 @@ const savingProvider = ref(false)
 const savingModel = ref(false)
 const importInputRef = ref<HTMLInputElement | null>(null)
 
-const FORMAT_OPTIONS: { value: ApiFormat; label: string }[] = [
-  { value: 'openai-sync', label: 'OpenAI 兼容 · 同步' },
-  { value: 'openai-async', label: 'OpenAI 兼容 · 异步' },
-  { value: 'xai-image', label: 'xAI Imagine · 图片' },
-  { value: 'doubao-video', label: 'Seedance官方 · 异步' },
+type ProtocolFormat = Exclude<ApiFormat, 'full-url'>
+type ProviderUrlMode = 'base' | 'full'
+
+const FORMAT_OPTIONS: {
+  value: ProtocolFormat
+  label: string
+  paths: { label: string; suffix: string }[]
+}[] = [
+  {
+    value: 'openai-sync',
+    label: 'OpenAI 兼容 · 同步',
+    paths: [
+      { label: '文本', suffix: '/chat/completions' },
+      { label: '图片', suffix: '/images/generations' },
+      { label: '视频', suffix: '/videos/generations' },
+    ],
+  },
+  {
+    value: 'openai-async',
+    label: 'OpenAI 兼容 · 异步',
+    paths: [
+      { label: '图片提交', suffix: '/images/generations?async=true' },
+      { label: '图片轮询', suffix: '/images/tasks/{task_id}' },
+      { label: '视频提交', suffix: '/videos/generations?async=true' },
+      { label: '视频轮询', suffix: '/videos/tasks/{task_id}' },
+    ],
+  },
+  {
+    value: 'xai-image',
+    label: 'xAI Imagine · 图片',
+    paths: [
+      { label: '文生图', suffix: '/images/generations' },
+      { label: '参考图编辑', suffix: '/images/edits' },
+    ],
+  },
+  {
+    value: 'doubao-video',
+    label: 'Seedance官方 · 异步',
+    paths: [
+      { label: '提交', suffix: '/contents/generations/tasks' },
+      { label: '轮询', suffix: '/contents/generations/tasks/{task_id}' },
+    ],
+  },
 ]
 
 const KIND_OPTIONS = [
@@ -70,8 +108,9 @@ const providerForm = ref<{
   id: number | null
   name: string
   base_url: string
+  url_mode: ProviderUrlMode
   api_key: string
-  api_format: ApiFormat
+  api_format: ProtocolFormat
   enabled: boolean
   notes: string
   ark_access_key: string
@@ -82,6 +121,7 @@ const providerForm = ref<{
   id: null,
   name: '',
   base_url: '',
+  url_mode: 'base',
   api_key: '',
   api_format: 'openai-sync',
   enabled: true,
@@ -92,6 +132,13 @@ const providerForm = ref<{
   ark_project_name: '',
 })
 const showProviderModal = ref(false)
+const selectedFormatOption = computed(() => FORMAT_OPTIONS.find((opt) => opt.value === providerForm.value.api_format))
+
+function endpointPreview(suffix: string) {
+  const base = providerForm.value.base_url.trim()
+  if (!base) return suffix
+  return `${base.replace(/\/+$/, '')}/${suffix.replace(/^\/+/, '')}`
+}
 
 const modelForm = ref<{
   id: number | null
@@ -182,6 +229,7 @@ function openCreateProvider() {
     id: null,
     name: '',
     base_url: '',
+    url_mode: 'base',
     api_key: '',
     api_format: 'openai-sync',
     enabled: true,
@@ -201,8 +249,9 @@ function openEditProvider(p: ProviderWithModels) {
     id: p.id,
     name: p.name,
     base_url: p.base_url,
+    url_mode: p.api_format === 'full-url' ? 'full' : 'base',
     api_key: p.api_key || '',
-    api_format: p.api_format,
+    api_format: p.api_format === 'full-url' ? 'openai-sync' : p.api_format,
     enabled: p.enabled,
     notes: p.notes || '',
     ark_access_key: p.ark_access_key || '',
@@ -217,10 +266,11 @@ function openEditProvider(p: ProviderWithModels) {
 
 async function submitProvider() {
   const form = providerForm.value
+  const apiFormat: ApiFormat = form.url_mode === 'full' ? 'full-url' : form.api_format
   const body: Record<string, unknown> = {
     name: form.name,
     base_url: form.base_url,
-    api_format: form.api_format,
+    api_format: apiFormat,
     enabled: form.enabled,
     notes: form.notes || null,
   }
@@ -230,7 +280,7 @@ async function submitProvider() {
     return
   }
   // Seedance 素材库凭证：仅 doubao-video 平台提交（空值 → 后端清空为 NULL）。
-  if (form.api_format === 'doubao-video') {
+  if (apiFormat === 'doubao-video') {
     body.ark_access_key = form.ark_access_key.trim() || null
     body.ark_secret_key = form.ark_secret_key.trim() || null
     body.ark_region = form.ark_region.trim() || null
@@ -449,6 +499,7 @@ function formatLabel(f: string) {
   if (f === 'openai-async') return 'OPENAI · 异步'
   if (f === 'xai-image') return 'xAI IMAGINE · 图片'
   if (f === 'doubao-video') return 'SEEDANCE官方 · 异步'
+  if (f === 'full-url') return '完整 URL · 直连'
   return f
 }
 
@@ -657,10 +708,23 @@ async function importConfig() {
               />
           </div>
           <div>
-            <div class="field-label required">Base URL</div>
-            <UInput v-model="providerForm.base_url" placeholder="https://api.example.com/v1"
+            <div class="mb-1.5 flex items-center justify-between gap-3">
+              <div class="field-label required !mb-0">{{ providerForm.url_mode === 'full' ? '完整 URL' : 'Base URL' }}</div>
+              <div class="seg-toggle" role="group" aria-label="平台 URL 类型">
+                <button type="button" class="seg-btn" :class="{ 'seg-btn-active': providerForm.url_mode === 'base' }"
+                  @click="providerForm.url_mode = 'base'">Base URL</button>
+                <button type="button" class="seg-btn" :class="{ 'seg-btn-active': providerForm.url_mode === 'full' }"
+                  @click="providerForm.url_mode = 'full'">完整 URL</button>
+              </div>
+            </div>
+            <UInput v-model="providerForm.base_url"
+              :placeholder="providerForm.url_mode === 'full' ? 'https://api.example.com/v1/images/generations' : 'https://api.example.com/v1'"
               class="font-mono" />
-            <p class="field-hint">不要带末尾斜杠，工具会自动拼接路径。</p>
+            <p class="field-hint">
+              {{ providerForm.url_mode === 'full'
+                ? '请求会直接 POST 到该地址，不再追加任何路径。'
+                : '无需填写接口路径，系统会按下方协议自动拼接。' }}
+            </p>
           </div>
           <div>
             <div class="field-label">API Key</div>
@@ -675,18 +739,33 @@ async function importConfig() {
               </template>
             </UInput>
           </div>
-          <div>
+          <div v-if="providerForm.url_mode === 'base'">
             <div class="field-label required">API 协议</div>
             <div class="grid grid-cols-1 gap-1.5">
               <button v-for="opt in FORMAT_OPTIONS" :key="opt.value" type="button"
-                class="rounded-[4px] border px-3 py-2 text-left text-[13px] transition" :class="providerForm.api_format === opt.value
+                class="rounded-[4px] border px-3 py-2.5 text-left transition" :class="providerForm.api_format === opt.value
                   ? 'border-primary-500 bg-primary-50 text-primary-700'
                   : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
-                @click="providerForm.api_format = opt.value">{{ opt.label }}</button>
+                @click="providerForm.api_format = opt.value">
+                <span class="block text-[13px] font-medium">{{ opt.label }}</span>
+                <span class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] leading-4 opacity-75">
+                  <span v-for="path in opt.paths" :key="path.label">{{ path.label }} {{ path.suffix }}</span>
+                </span>
+              </button>
+            </div>
+            <div v-if="selectedFormatOption" class="mt-2.5 rounded-[4px] bg-[var(--c-surface-2)] px-3 py-2.5">
+              <div class="mb-1.5 text-[11px] font-medium text-[var(--c-fg-3)]">最终请求地址</div>
+              <div class="space-y-1">
+                <div v-for="path in selectedFormatOption.paths" :key="path.label"
+                  class="flex min-w-0 items-baseline gap-2 text-[11px]">
+                  <span class="w-14 flex-shrink-0 text-[var(--c-fg-4)]">{{ path.label }}</span>
+                  <span class="min-w-0 break-all font-mono text-[var(--c-fg-2)]">{{ endpointPreview(path.suffix) }}</span>
+                </div>
+              </div>
             </div>
           </div>
           <!-- Seedance 素材库（虚拟人像库）：仅视频协议展示，用于「参考走素材库」。留空则不启用。 -->
-          <div v-if="providerForm.api_format === 'doubao-video'"
+          <div v-if="providerForm.url_mode === 'base' && providerForm.api_format === 'doubao-video'"
             class="space-y-3 rounded-[6px] border border-[var(--c-border)] bg-[var(--c-surface)] p-3">
             <div class="text-[13px] font-medium text-[var(--c-fg-2)]">素材库（选填）</div>
             <div class="text-[12px] leading-relaxed text-[var(--c-fg-4)]">

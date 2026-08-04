@@ -44,7 +44,7 @@ const refLimits = computed(() => {
   if (props.apiFormat === 'xai-image' && props.kind === 'image') {
     return { image: 3, video: 0, audio: 0 }
   }
-  if ((props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async') && props.kind === 'image') {
+  if ((props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'image') {
     return { image: 4, video: 0, audio: 0 }
   }
   return { image: 0, video: 0, audio: 0 }
@@ -77,8 +77,8 @@ function clearKey(key: string) {
 
 const isVideoSeedance = computed(() => props.apiFormat === 'doubao-video' && props.kind === 'video')
 const isImageXAI = computed(() => props.apiFormat === 'xai-image' && props.kind === 'image')
-const isImageOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async') && props.kind === 'image')
-const isVideoOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async') && props.kind === 'video')
+const isImageOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'image')
+const isVideoOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'video')
 const isText = computed(() => props.kind === 'text')
 
 const temperature = computed(() => Number(props.modelValue.temperature ?? 1))

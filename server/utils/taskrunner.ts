@@ -246,7 +246,7 @@ export async function handleTaskMessage(
   const payload = row.request_payload ? JSON.parse(row.request_payload) : {}
 
   if (msg.phase === 'run-sync') {
-    const isSyncFormat = format === 'openai-sync' || format === 'xai-image'
+    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url'
     if (kind !== 'text' && (!isSyncFormat || !adapterSupportsKind(format, kind))) {
       await persistTerminal(msg.taskId, {
         status: 'failed', request_payload: payload, response_payload: null, result_urls: [],

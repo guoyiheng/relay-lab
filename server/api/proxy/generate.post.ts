@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
   const kind = body?.kind
   const modelId = (body?.modelId || '').trim()
   const prompt = (body?.prompt || '').trim()
-  if (!['openai-sync', 'openai-async', 'xai-image', 'doubao-video'].includes(format)) {
+  if (!['openai-sync', 'openai-async', 'xai-image', 'doubao-video', 'full-url'].includes(format)) {
     throw createError({ statusCode: 400, statusMessage: '不支持的 API 格式' })
   }
   if (!['image', 'video', 'text'].includes(kind)) {

@@ -14,6 +14,7 @@ import type {
 } from '~~/types/api'
 import type { StatsRow } from '~/stores/history'
 import { shellSingleQuote, taskEndpoint } from '~~/shared/task-curl'
+import { normalizeProviderUrl } from '~~/shared/provider-url'
 import type { DataSource } from './types'
 import { idb } from './idb'
 import { runOfflineTask, resumeOfflineTaskPolls, hydrateOfflineTask, type OfflineTaskRecord } from './offline-task'
@@ -93,7 +94,7 @@ export class OfflineDataSource implements DataSource {
 
   async createProvider(input: ProviderInput): Promise<Provider> {
     const name = (input.name || '').trim()
-    const base_url = (input.base_url || '').trim().replace(/\/+$/, '')
+    const base_url = normalizeProviderUrl(input.base_url || '', input.api_format)
     const api_key = (input.api_key || '').trim()
     if (!name) throw new Error('请填写平台名称')
     if (!base_url) throw new Error('请填写 Base URL')
@@ -121,10 +122,13 @@ export class OfflineDataSource implements DataSource {
     if (patch.name !== undefined && patch.name.trim() !== cur.name) {
       await this.assertNameFree(patch.name.trim(), id)
     }
+    const nextFormat = patch.api_format ?? cur.api_format
     const next: Provider = {
       ...cur,
       ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
-      ...(patch.base_url !== undefined ? { base_url: patch.base_url.trim().replace(/\/+$/, '') } : {}),
+      ...(patch.base_url !== undefined
+        ? { base_url: normalizeProviderUrl(patch.base_url, nextFormat) }
+        : {}),
       ...(patch.api_key !== undefined ? { api_key: patch.api_key.trim() } : {}),
       ...(patch.api_format !== undefined ? { api_format: patch.api_format } : {}),
       ...(patch.enabled !== undefined ? { enabled: !!patch.enabled } : {}),

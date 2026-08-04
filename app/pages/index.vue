@@ -116,7 +116,7 @@ const hasPolishModel = computed(() =>
 const refLimits = computed(() => {
   if (apiFormat.value === 'doubao-video' && kind.value === 'video') return { image: 9, video: 3, audio: 3 }
   if (apiFormat.value === 'xai-image' && kind.value === 'image') return { image: 3, video: 0, audio: 0 }
-  if ((apiFormat.value === 'openai-sync' || apiFormat.value === 'openai-async') && kind.value === 'image') return { image: 4, video: 0, audio: 0 }
+  if ((apiFormat.value === 'openai-sync' || apiFormat.value === 'openai-async' || apiFormat.value === 'full-url') && kind.value === 'image') return { image: 4, video: 0, audio: 0 }
   return { image: 0, video: 0, audio: 0 }
 })
 const allowKinds = computed(() =>
@@ -200,7 +200,7 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
     for (const url of rAud) content.push({ type: 'audio_url', role: 'reference_audio', audio_url: { url } })
     return { ...p, content }
   }
-  if ((apiFormat.value === 'openai-sync' || apiFormat.value === 'openai-async') && kind.value === 'image' && rImg.length) {
+  if ((apiFormat.value === 'openai-sync' || apiFormat.value === 'openai-async' || apiFormat.value === 'full-url') && kind.value === 'image' && rImg.length) {
     return { ...base, image: rImg.length === 1 ? rImg[0] : rImg }
   }
   return p
