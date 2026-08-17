@@ -12,10 +12,6 @@ const route = useRoute()
 const router = useRouter()
 const activeTab = ref<AuthTab>('login')
 const mode = ref<UseMode>('offline')
-const showOnline = computed(() => {
-  const queryMode = route.query.mode
-  return (Array.isArray(queryMode) ? queryMode[0] : queryMode) === 'showOnline'
-})
 const me = useCurrentUser()
 
 const username = ref('')
@@ -34,15 +30,10 @@ const gameActive = ref(false)
 const authCardPinned = ref(false)
 
 watch(
-  () => [route.query.tab, route.query.invite, showOnline.value] as const,
-  ([tab, queryInvite, canShowOnline]) => {
+  () => [route.query.tab, route.query.invite] as const,
+  ([tab, queryInvite]) => {
     const inviteCode = String(Array.isArray(queryInvite) ? queryInvite[0] || '' : queryInvite || '')
     invite.value = inviteCode
-    if (!canShowOnline) {
-      mode.value = 'offline'
-      activeTab.value = 'login'
-      return
-    }
     if (tab === 'register' || inviteCode) mode.value = 'online'
     activeTab.value = tab === 'register' || inviteCode ? 'register' : 'login'
   },
@@ -145,7 +136,7 @@ function enterOffline() {
           <span class="font-display text-[20px] font-semibold tracking-tightish text-[var(--c-fg)]">Lab</span>
         </header>
 
-        <div v-if="showOnline" class="mb-5 grid grid-cols-2 rounded-[7px] bg-[var(--c-surface-2)] p-0.5"
+        <div class="mb-5 grid grid-cols-2 rounded-[7px] bg-[var(--c-surface-2)] p-0.5"
           role="radiogroup" aria-label="使用方式">
           <button type="button" role="radio" :aria-checked="mode === 'offline'"
             class="flex items-center justify-center gap-1.5 rounded-[5px] px-3 py-2 text-[12px] font-medium transition-colors"
