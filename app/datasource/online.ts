@@ -52,6 +52,11 @@ export class OnlineDataSource implements DataSource {
       body: data as any,
     })
   }
+  fetchProviderModels(input: { baseUrl: string; apiKey: string; apiFormat: string }) {
+    return $fetch<{ models: Array<{ id: string; name?: string }> }>('/api/proxy/models', {
+      method: 'POST', body: input,
+    }).then((res) => res.models || [])
+  }
 
   // ── 模型 Models ─────────────────────────────────────────────────
   createModel(input: ModelInput) {

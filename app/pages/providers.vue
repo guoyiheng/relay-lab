@@ -175,6 +175,18 @@ const modelForm = ref<{
 })
 const showModelModal = ref(false)
 const modelError = ref<string | null>(null)
+const fetchedModels = ref<Array<{ id: string; name?: string }>>([])
+const fetchingModels = ref(false)
+const modelListOpen = ref(false)
+const modelFetchError = ref<string | null>(null)
+const filteredFetchedModels = computed(() => {
+  const query = modelForm.value.model_id.trim().toLocaleLowerCase()
+  if (!query) return fetchedModels.value
+  return fetchedModels.value.filter((model) =>
+    model.id.toLocaleLowerCase().includes(query)
+    || model.name?.toLocaleLowerCase().includes(query),
+  )
+})
 // 平台密钥/模型独立 key 的显示-隐藏开关
 const showProviderKey = ref(false)
 const showArkSecret = ref(false)
@@ -371,6 +383,7 @@ function openCreateModel(p: ProviderWithModels) {
     keys: [],
   }
   modelError.value = null
+  resetFetchedModels()
   snapModel()
   showModelModal.value = true
 }
@@ -394,8 +407,61 @@ function openEditModel(m: Model) {
     keys: (m.keys || []).map((k) => ({ name: k.name || '', key: k.key, enabled: k.enabled !== false })),
   }
   modelError.value = null
+  resetFetchedModels()
   snapModel()
   showModelModal.value = true
+}
+
+function resetFetchedModels() {
+  fetchedModels.value = []
+  modelListOpen.value = false
+  modelFetchError.value = null
+}
+
+function editingProvider() {
+  return providers.value.find((provider) => provider.id === modelForm.value.provider_id) || null
+}
+
+async function fetchModels() {
+  if (fetchingModels.value) return
+  const provider = editingProvider()
+  if (!provider) {
+    modelFetchError.value = '找不到当前平台'
+    modelListOpen.value = true
+    return
+  }
+  fetchingModels.value = true
+  modelFetchError.value = null
+  try {
+    fetchedModels.value = await useDataSource().fetchProviderModels({
+      baseUrl: provider.base_url,
+      apiKey: provider.api_key,
+      apiFormat: provider.api_format,
+    })
+    modelListOpen.value = true
+  } catch (err: any) {
+    fetchedModels.value = []
+    modelFetchError.value = err?.data?.statusMessage || err?.statusMessage || err?.message || '获取模型失败'
+    modelListOpen.value = true
+  } finally {
+    fetchingModels.value = false
+  }
+}
+
+function selectFetchedModel(model: { id: string; name?: string }) {
+  modelForm.value.model_id = model.id
+  if (!modelForm.value.display_name && model.name) modelForm.value.display_name = model.name
+  modelListOpen.value = false
+}
+
+function onModelInput() {
+  if (fetchedModels.value.length || modelFetchError.value) modelListOpen.value = true
+}
+
+function onModelPickerFocusOut(event: FocusEvent) {
+  const current = event.currentTarget as HTMLElement
+  const next = event.relatedTarget as Node | null
+  if (!next || !current.contains(next)) modelListOpen.value = false
 }
 
 function addModelKey() {
@@ -835,8 +901,45 @@ async function importConfig() {
           <p v-if="modelCloseWarn" class="rounded-[4px] border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] text-red-500">有未保存的修改，再次关闭将丢弃</p>
           <div>
             <div class="field-label required">模型 ID</div>
-            <UInput v-model="modelForm.model_id" placeholder="gpt-image-2 / dall-e-3 / ep-xxx"
-              class="font-mono" />
+            <div class="relative" @focusout="onModelPickerFocusOut">
+              <UInput v-model="modelForm.model_id" placeholder="输入模型 ID 或获取后搜索"
+                class="font-mono" autocomplete="off" @input="onModelInput" @focus="onModelInput">
+                <template #trailing>
+                  <button type="button"
+                    class="inline-flex h-7 items-center gap-1 border-l border-[var(--c-border)] pl-2 pr-0.5 font-sans text-[12px] text-[var(--c-fg-4)] transition hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="fetchingModels" :title="fetchingModels ? '正在获取模型' : '从当前平台获取模型'"
+                    @click.stop="fetchModels">
+                    <UIcon :name="fetchingModels ? 'i-carbon-circle-dash' : 'i-carbon-download'"
+                      class="h-3.5 w-3.5" :class="fetchingModels ? 'animate-spin' : ''" />
+                    {{ fetchingModels ? '获取中' : '获取模型' }}
+                  </button>
+                </template>
+              </UInput>
+              <div v-if="modelListOpen"
+                class="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-[6px] border border-[var(--c-border)] bg-[var(--c-surface)] shadow-wf">
+                <div v-if="modelFetchError" class="px-3 py-2.5 text-[12px] text-red-600">
+                  {{ modelFetchError }}
+                </div>
+                <div v-else-if="!fetchedModels.length" class="px-3 py-2.5 text-[12px] text-[var(--c-fg-4)]">
+                  平台未返回模型
+                </div>
+                <div v-else-if="!filteredFetchedModels.length" class="px-3 py-2.5 text-[12px] text-[var(--c-fg-4)]">
+                  没有匹配项，可直接使用当前输入
+                </div>
+                <div v-else class="scroll-area max-h-56 overflow-y-auto py-1">
+                  <button v-for="model in filteredFetchedModels" :key="model.id" type="button"
+                    class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[var(--c-surface-2)]"
+                    @mousedown.prevent @click="selectFetchedModel(model)">
+                    <span class="min-w-0 truncate font-mono text-[13px] text-[var(--c-fg-2)]">{{ model.id }}</span>
+                    <span v-if="model.name" class="max-w-[42%] flex-shrink-0 truncate text-[12px] text-[var(--c-fg-5)]">{{ model.name }}</span>
+                  </button>
+                </div>
+                <div v-if="fetchedModels.length && !modelFetchError"
+                  class="border-t border-[var(--c-border-2)] px-3 py-1.5 text-[11px] text-[var(--c-fg-5)]">
+                  {{ filteredFetchedModels.length }} / {{ fetchedModels.length }} 个模型
+                </div>
+              </div>
+            </div>
           </div>
           <div>
             <div class="field-label">显示名称</div>

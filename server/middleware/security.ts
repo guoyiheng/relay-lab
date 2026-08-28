@@ -35,6 +35,11 @@ const PROXY_ROUTES: Record<string, ProtectedRoute> = {
     binding: 'OFFLINE_PROXY_FETCH_RATE_LIMITER', scope: 'proxy-fetch',
     globalBinding: 'OFFLINE_PROXY_FETCH_GLOBAL_RATE_LIMITER', globalScope: 'proxy-fetch-global',
   },
+  '/api/proxy/models': {
+    maxBytes: 32 * 1024,
+    binding: 'OFFLINE_PROXY_FETCH_RATE_LIMITER', scope: 'proxy-models',
+    globalBinding: 'OFFLINE_PROXY_FETCH_GLOBAL_RATE_LIMITER', globalScope: 'proxy-models-global',
+  },
 }
 
 const AUTH_BODY_MAX = 32 * 1024

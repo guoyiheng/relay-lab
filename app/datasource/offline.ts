@@ -85,6 +85,12 @@ export class OfflineDataSource implements DataSource {
     }))
   }
 
+  fetchProviderModels(input: { baseUrl: string; apiKey: string; apiFormat: string }) {
+    return $fetch<{ models: Array<{ id: string; name?: string }> }>('/api/proxy/models', {
+      method: 'POST', body: input,
+    }).then((res) => res.models || [])
+  }
+
   private async assertNameFree(name: string, exceptId?: number) {
     const all = await idb.getAll<Provider>('providers')
     if (all.some((p) => p.name === name && p.id !== exceptId)) {

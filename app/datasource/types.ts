@@ -41,6 +41,7 @@ export interface DataSource {
   copyProvider(id: number): Promise<{ provider: { name: string }; models: number }>
   exportProviders(): Promise<unknown>
   importProviders(data: unknown): Promise<{ providers: number; models: number; errors: unknown[] }>
+  fetchProviderModels(input: { baseUrl: string; apiKey: string; apiFormat: string }): Promise<Array<{ id: string; name?: string }>>
 
   // ── 模型 Models ─────────────────────────────────────────────────
   createModel(input: ModelInput): Promise<Model>
