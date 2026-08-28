@@ -890,13 +890,13 @@ function toggleRail() {
           <div>
             <div class="field-label">平台</div>
             <div v-if="!visibleProviders.length" class="text-[12px] text-[var(--c-fg-4)]">暂无平台</div>
-            <div v-else class="flex flex-wrap gap-1.5">
-              <button v-for="p in visibleProviders" :key="p.id" type="button"
-                class="rounded-[4px] border px-2.5 py-1 text-[12px] transition"
-                :class="selectedProviderId === p.id
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
-                @click="selectedProviderId = p.id">{{ p.name }}</button>
+            <div v-else class="relative">
+              <select v-model="selectedProviderId"
+                class="h-9 w-full appearance-none rounded-[4px] border border-[var(--c-border)] bg-[var(--c-surface)] px-3 pr-9 text-[13px] text-[var(--c-fg-2)] outline-none transition hover:border-[var(--c-fg-5)] focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20">
+                <option v-for="p in visibleProviders" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+              <UIcon name="i-carbon-chevron-down"
+                class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--c-fg-4)]" />
             </div>
           </div>
           <div>
