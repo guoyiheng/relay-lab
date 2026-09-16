@@ -21,9 +21,11 @@ export function taskEndpoint(
   if (!baseUrl) return null
   if (task.api_format === 'full-url') return { method: 'POST', url: baseUrl }
   if (task.kind === 'text') return { method: 'POST', url: joinUrl(baseUrl, 'chat/completions') }
-
   const resource = task.kind === 'image' ? 'images' : 'videos'
   if (task.api_format === 'doubao-video') {
+    if (task.kind === 'image') {
+      return { method: 'POST', url: joinUrl(baseUrl, 'images/generations') }
+    }
     return { method: 'POST', url: joinUrl(baseUrl, 'contents/generations/tasks') }
   }
   if (task.api_format === 'openai-async') {

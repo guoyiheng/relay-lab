@@ -547,7 +547,7 @@ export function adapterLabel(format: ApiFormat): string {
   if (format === 'openai-sync') return 'OpenAI 兼容 · 同步'
   if (format === 'openai-async') return 'OpenAI 兼容 · 异步'
   if (format === 'xai-image') return 'xAI Imagine · 图片'
-  if (format === 'doubao-video') return 'Doubao / Seedance · 视频'
+  if (format === 'doubao-video') return '火山方舟 / Seedance'
   if (format === 'full-url') return '完整 URL · 直连'
   return format
 }
@@ -660,6 +660,40 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
     }
   }
   if (format === 'doubao-video') {
+    if (ctx.kind === 'image') {
+      const cleanParams = { ...ctx.params }
+      delete (cleanParams as any).ratio
+      delete (cleanParams as any).image_resolution
+      delete (cleanParams as any).duration
+      delete (cleanParams as any).resolution
+      delete (cleanParams as any).generate_audio
+      delete (cleanParams as any).use_asset_library
+      const refImages = collectImageRefs(ctx)
+      const size = String(cleanParams.size || '2K')
+      const watermark = cleanParams.watermark !== undefined ? !!cleanParams.watermark : true
+      const imageInParams = cleanParams.image
+      delete (cleanParams as any).size
+      delete (cleanParams as any).watermark
+      delete (cleanParams as any).response_format
+      delete (cleanParams as any).stream
+      delete (cleanParams as any).image
+
+      const payload: Record<string, unknown> = {
+        model: ctx.modelId,
+        prompt: ctx.prompt,
+        response_format: 'url',
+        size,
+        stream: false,
+        watermark,
+        ...cleanParams,
+      }
+      if (refImages.length) {
+        payload.image = refImages
+      } else if (imageInParams) {
+        payload.image = imageInParams
+      }
+      return payload
+    }
     const ratio = (ctx.params.ratio as string) || '9:16'
     const resolution = (ctx.params.resolution as string) || '480p'
     const duration = Number(ctx.params.duration) || 6
@@ -721,7 +755,7 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
 }
 
 export function adapterSupportsKind(format: ApiFormat, kind: ModelKind): boolean {
-  if (format === 'doubao-video') return kind === 'video'
+  if (format === 'doubao-video') return kind === 'video' || kind === 'image'
   if (format === 'xai-image') return kind === 'image'
   return true
 }
@@ -740,7 +774,13 @@ export async function runAdapter(format: ApiFormat, ctx: AdapterContext): Promis
   }
   if (format === 'xai-image') return runXAIImageSync(ctx)
   if (format === 'openai-async') return runOpenAIAsync(ctx)
-  if (format === 'doubao-video') return runDoubaoVideo(ctx)
+  if (format === 'doubao-video') {
+    if (ctx.kind === 'image') {
+      const payload = buildRequestPayload('doubao-video', ctx)
+      return runPreparedSyncTask({ format: 'doubao-video', baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: ctx.kind, payload })
+    }
+    return runDoubaoVideo(ctx)
+  }
   throw new Error(`Unsupported api_format: ${format}`)
 }
 

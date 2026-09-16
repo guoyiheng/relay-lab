@@ -10,6 +10,7 @@ describe('taskEndpoint', () => {
     [{ kind: 'video', api_format: 'openai-sync' }, 'https://api.example.com/v1/videos/generations'],
     [{ kind: 'image', api_format: 'openai-async' }, 'https://api.example.com/v1/images/generations?async=true'],
     [{ kind: 'video', api_format: 'doubao-video' }, 'https://api.example.com/v1/contents/generations/tasks'],
+    [{ kind: 'image', api_format: 'doubao-video' }, 'https://api.example.com/v1/images/generations'],
     [{ kind: 'image', api_format: 'xai-image' }, 'https://api.example.com/v1/images/generations'],
     [{ kind: 'image', api_format: 'xai-image', request_payload: { image: 'data:...' } }, 'https://api.example.com/v1/images/edits'],
     [{ kind: 'image', api_format: 'xai-image', request_payload: { images: [] } }, 'https://api.example.com/v1/images/edits'],

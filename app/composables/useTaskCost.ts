@@ -56,7 +56,7 @@ export function computeTaskCost(task: TaskRow | null, model?: Model | null): Tas
   // Seedance 两档（含/不含视频）按量计价。优先用任务快照价；快照缺失（老任务）
   // 时回退到旧常量，按模型名推断 Pro/Fast 档位。
   const priceModeEff = task.price_mode ?? model?.price_mode ?? null
-  if (priceModeEff === 'per_mtoken_video' || (priceModeEff == null && task.api_format === 'doubao-video')) {
+  if (priceModeEff === 'per_mtoken_video' || (priceModeEff == null && task.api_format === 'doubao-video' && task.kind === 'video')) {
     const tokens = extractTokens(task)
     if (!tokens) return null
     const name = `${task.model_name || ''}`.toLowerCase()

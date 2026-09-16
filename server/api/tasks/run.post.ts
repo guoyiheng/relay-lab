@@ -13,7 +13,7 @@ import { buildRequestPayload, type ReferenceAsset, type OrderedSegment } from '~
 import { startTask } from '~~/server/utils/taskrunner'
 import { serializeTask } from '~~/server/utils/serialize'
 
-const LIMITS: Record<AssetKind, number> = { image: 9, video: 3, audio: 3 }
+const LIMITS: Record<AssetKind, number> = { image: 10, video: 3, audio: 3 }
 const ASSET_KINDS: AssetKind[] = ['image', 'video', 'audio']
 
 async function loadAsset(id: string, userId: number): Promise<AssetRecord> {

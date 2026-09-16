@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const isAsync = kind !== 'text'
-    && (format === 'openai-async' || format === 'doubao-video')
+    && (format === 'openai-async' || (format === 'doubao-video' && kind === 'video'))
     && adapterSupportsKind(format, kind)
   const payload = buildRequestPayload(format, ctx)
 

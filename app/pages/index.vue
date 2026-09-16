@@ -114,7 +114,10 @@ const hasPolishModel = computed(() =>
 // Reference-asset limits for the current model/format — mirrors ParamsForm.
 // Drives the prompt @-mention filter (allowKinds) and the pick guard.
 const refLimits = computed(() => {
-  if (apiFormat.value === 'doubao-video' && kind.value === 'video') return { image: 9, video: 3, audio: 3 }
+  if (apiFormat.value === 'doubao-video') {
+    if (kind.value === 'video') return { image: 9, video: 3, audio: 3 }
+    if (kind.value === 'image') return { image: 10, video: 0, audio: 0 }
+  }
   if (apiFormat.value === 'xai-image' && kind.value === 'image') return { image: 3, video: 0, audio: 0 }
   if ((apiFormat.value === 'openai-sync' || apiFormat.value === 'openai-async' || apiFormat.value === 'full-url') && kind.value === 'image') return { image: 4, video: 0, audio: 0 }
   return { image: 0, video: 0, audio: 0 }
@@ -182,6 +185,34 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
     if (rImg.length === 1) return { ...normalized, image: { url: rImg[0], type: 'image_url' } }
     if (rImg.length > 1) return { ...normalized, images: rImg.slice(0, 3).map((url) => ({ url, type: 'image_url' })) }
     return normalized
+  }
+
+  if (apiFormat.value === 'doubao-video' && kind.value === 'image') {
+    const base = { ...p }
+    delete (base as any).ratio
+    delete (base as any).image_resolution
+    delete (base as any).duration
+    delete (base as any).resolution
+    delete (base as any).generate_audio
+    const size = String(base.size || '2K')
+    const watermark = base.watermark !== undefined ? !!base.watermark : true
+    delete (base as any).size
+    delete (base as any).watermark
+    delete (base as any).response_format
+    delete (base as any).stream
+    delete (base as any).image
+
+    const out: Record<string, unknown> = {
+      response_format: 'url',
+      size,
+      stream: false,
+      watermark,
+      ...base,
+    }
+    if (rImg.length) {
+      out.image = rImg
+    }
+    return out
   }
 
   const hasRefs = rImg.length || rVid.length || rAud.length

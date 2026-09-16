@@ -68,10 +68,11 @@ const FORMAT_OPTIONS: {
   },
   {
     value: 'doubao-video',
-    label: 'Seedance官方 · 异步',
+    label: '火山方舟 / Seedance',
     paths: [
-      { label: '提交', suffix: '/contents/generations/tasks' },
-      { label: '轮询', suffix: '/contents/generations/tasks/{task_id}' },
+      { label: '图片生成', suffix: '/images/generations' },
+      { label: '视频提交', suffix: '/contents/generations/tasks' },
+      { label: '视频轮询', suffix: '/contents/generations/tasks/{task_id}' },
     ],
   },
 ]
@@ -564,7 +565,7 @@ function formatLabel(f: string) {
   if (f === 'openai-sync') return 'OPENAI · 同步'
   if (f === 'openai-async') return 'OPENAI · 异步'
   if (f === 'xai-image') return 'xAI IMAGINE · 图片'
-  if (f === 'doubao-video') return 'SEEDANCE官方 · 异步'
+  if (f === 'doubao-video') return '火山方舟 / Seedance'
   if (f === 'full-url') return '完整 URL · 直连'
   return f
 }

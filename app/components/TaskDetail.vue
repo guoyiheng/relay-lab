@@ -186,7 +186,9 @@ const formatLabel = computed(() => {
   if (props.task.api_format === 'openai-sync') return 'OpenAI 兼容 · 同步'
   if (props.task.api_format === 'openai-async') return 'OpenAI 兼容 · 异步'
   if (props.task.api_format === 'xai-image') return 'xAI Imagine · 图片'
-  if (props.task.api_format === 'doubao-video') return 'Seedance官方 · 异步'
+  if (props.task.api_format === 'doubao-video') {
+    return props.task.kind === 'image' ? '火山 Seedream · 同步' : 'Seedance官方 · 异步'
+  }
   if (props.task.api_format === 'full-url') return '完整 URL · 直连'
   return props.task.api_format
 })

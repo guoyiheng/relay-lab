@@ -129,11 +129,11 @@ export async function startTask(
   provider?: ProviderRecord,
 ) {
   const queue = useQueue()
-  const isAsync = kind !== 'text' && (format === 'openai-async' || format === 'doubao-video') && adapterSupportsKind(format, kind)
+  const isAsync = kind !== 'text' && (format === 'openai-async' || (format === 'doubao-video' && kind === 'video')) && adapterSupportsKind(format, kind)
   if (queue) {
     if (isAsync) {
-      // doubao-video 且勾选「参考走素材库」→ 先入库（prepare-assets），再 submit；否则直接 submit。
-      const useAssetLib = format === 'doubao-video' && !!runCtx.params?.use_asset_library
+      // doubao-video 视频且勾选「参考走素材库」→ 先入库（prepare-assets），再 submit；否则直接 submit。
+      const useAssetLib = format === 'doubao-video' && kind === 'video' && !!runCtx.params?.use_asset_library
       const hasRefs = runCtx.refs.image.length + runCtx.refs.video.length + runCtx.refs.audio.length > 0
       const phase: TaskMessage['phase'] = useAssetLib && hasRefs ? 'prepare-assets' : 'submit'
       await queue.send({ taskId, phase } satisfies TaskMessage)
@@ -158,10 +158,10 @@ async function runInProcess(
   const startedAt = Date.now()
   let result: AdapterResult
   try {
-    // 参考走素材库（doubao-video + 勾选）：runAdapter 前先把参考素材入库并把 ctx 里的 URL 换成 asset://<id>。
+    // 参考走素材库（doubao-video 视频 + 勾选）：runAdapter 前先把参考素材入库并把 ctx 里的 URL 换成 asset://<id>。
     // 入库后 ctx 里的 URL 已是 asset://，据此重算 request_payload 落库——否则请求 tab 停留在公开 URL，
     // 与真实发出的 asset:// 不一致（队列路径在 prepare-assets 阶段已落库改写，进程内需在此补上）。
-    if (format === 'doubao-video' && provider && ctx.params?.use_asset_library) {
+    if (format === 'doubao-video' && kind === 'video' && provider && ctx.params?.use_asset_library) {
       await ingestRefsInProcess(provider, ctx)
       try {
         const realPayload = buildRequestPayload(format, { ...ctx, kind })
@@ -246,7 +246,7 @@ export async function handleTaskMessage(
   const payload = row.request_payload ? JSON.parse(row.request_payload) : {}
 
   if (msg.phase === 'run-sync') {
-    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url'
+    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url' || (format === 'doubao-video' && kind === 'image')
     if (kind !== 'text' && (!isSyncFormat || !adapterSupportsKind(format, kind))) {
       await persistTerminal(msg.taskId, {
         status: 'failed', request_payload: payload, response_payload: null, result_urls: [],

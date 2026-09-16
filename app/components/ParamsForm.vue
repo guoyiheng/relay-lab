@@ -38,8 +38,9 @@ const emit = defineEmits<{
 // Generic OpenAI image: up to 4 reference images, no video/audio.
 // OpenAI video: not yet supported.
 const refLimits = computed(() => {
-  if (props.apiFormat === 'doubao-video' && props.kind === 'video') {
-    return { image: 9, video: 3, audio: 3 }
+  if (props.apiFormat === 'doubao-video') {
+    if (props.kind === 'video') return { image: 9, video: 3, audio: 3 }
+    if (props.kind === 'image') return { image: 10, video: 0, audio: 0 }
   }
   if (props.apiFormat === 'xai-image' && props.kind === 'image') {
     return { image: 3, video: 0, audio: 0 }
@@ -76,10 +77,20 @@ function clearKey(key: string) {
 }
 
 const isVideoSeedance = computed(() => props.apiFormat === 'doubao-video' && props.kind === 'video')
+const isImageDoubao = computed(() => props.apiFormat === 'doubao-video' && props.kind === 'image')
 const isImageXAI = computed(() => props.apiFormat === 'xai-image' && props.kind === 'image')
 const isImageOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'image')
 const isVideoOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'video')
 const isText = computed(() => props.kind === 'text')
+
+const DOUBAO_IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const
+const doubaoSize = computed(() => {
+  const s = props.modelValue.size
+  if (s && typeof s === 'string') return s
+  if (props.modelValue.image_resolution) return String(props.modelValue.image_resolution)
+  return '2K'
+})
+const doubaoWatermark = computed(() => props.modelValue.watermark !== false)
 
 const temperature = computed(() => Number(props.modelValue.temperature ?? 1))
 
@@ -386,6 +397,31 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
           <span class="w-8 text-right font-mono text-[13px] tabular-nums text-[var(--c-fg-3)]">{{ temperature.toFixed(1) }}</span>
         </div>
         <p class="field-hint">越低越确定，越高越发散。</p>
+      </div>
+    </template>
+
+    <!-- 火山方舟 / Doubao · 图像 (Seedream 等) -->
+    <template v-else-if="isImageDoubao">
+      <div>
+        <div class="field-label">分辨率</div>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="r in DOUBAO_IMAGE_RESOLUTIONS"
+            :key="r"
+            type="button"
+            class="rounded-[4px] border px-2.5 py-1 text-[12px] transition"
+            :class="doubaoSize === r
+              ? 'border-primary-500 bg-primary-50 text-primary-700'
+              : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
+            @click="patch({ size: r })"
+          >{{ r }}</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="flex items-center justify-between rounded-[4px] border border-[var(--c-border)] px-3 py-1.5">
+          <span class="text-[12px] text-[var(--c-fg-2)]">水印</span>
+          <USwitch size="xs" :model-value="doubaoWatermark" @update:model-value="(v: boolean) => patch({ watermark: v })" />
+        </label>
       </div>
     </template>
 
