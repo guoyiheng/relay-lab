@@ -56,12 +56,6 @@ const activeIndex = ref(0)
 let triggerNode: Text | null = null
 let triggerStartOffset = -1
 let triggerEndOffset = -1
-// Sigs of chips the user deleted from the prompt (Backspace). The material stays
-// selected in the reference strip / @ list — only its inline mention is dropped.
-// reconcileChips consults this so a later strip edit (reorder / add) never
-// resurrects a dismissed chip. Cleared for a sig only when the user re-@-mentions
-// that asset, or when the material actually leaves the strip.
-const dismissedTokens = ref<Set<string>>(new Set())
 
 const { favorites } = usePromptFavorites()
 
@@ -287,14 +281,9 @@ function refIndexBySig(): Map<string, number> {
 }
 // Keep the inline chips reconciled with the reference strip (mentionedRefs):
 //  - a ref removed from the strip → drop every chip carrying its sig（删除一起删除）
-//  - a ref added via the strip (upload / drag / paste) that has no chip yet →
-//    append one at the end（新增的素材同步进输入框）
-// @-mention already inserts its chip synchronously before this runs, so it's
-// found present and not duplicated. Reorder keeps the same sigs → no add/remove,
-// only renumberChips relabels 图片N by strip order（拖拽排序一起排序）。
-// Tokens a chip's sig could present, so it can be matched to a ref robustly
-// (mirrors refTokens on the ref side): a generated asset's chip sig is url:…
-// while its ref sig is id:…, so exact equality would miss — intersect tokens.
+//  - strip reorder → renumberChips relabels 图片N by strip order（拖拽排序一起排序）
+// Note: adding a reference to the strip does NOT auto-append a chip to the input box.
+// Chips are only added when the user explicitly @-mentions an asset.
 function sigTokens(sig: string): string[] {
   return getRefTokens({ sig })
 }
@@ -306,29 +295,12 @@ function reconcileChips() {
   const allRefTokens = new Set<string>()
   for (const r of refs) for (const tok of refTokens(r)) allRefTokens.add(tok)
   // 素材已从列表移除 → 删掉不再对应任何 ref 的 chip。
-  const liveChips: HTMLElement[] = []
   el.querySelectorAll<HTMLElement>('[data-ref-sig]').forEach((chip) => {
     const toks = sigTokens(chip.dataset.refSig || '')
-    if (toks.some((tok) => allRefTokens.has(tok))) liveChips.push(chip)
-    else chip.remove()
-  })
-  // 素材若真的离开了素材条，其「被删 chip」记录也随之作废——下次重新加入应能再补 chip。
-  if (dismissedTokens.value.size) {
-    for (const tok of [...dismissedTokens.value]) if (!allRefTokens.has(tok)) dismissedTokens.value.delete(tok)
-  }
-  // 列表新增（含拖入/粘贴/上传）→ 给还没有 chip 的 ref 末尾补一个；
-  // 但用户在输入框里手动删掉的 chip 不再自动补回（永久不出现，除非重新 @ 引用）。
-  for (const r of refs) {
-    const rTokens = refTokens(r)
-    if (rTokens.some((tok) => dismissedTokens.value.has(tok))) continue
-    const rTokenSet = new Set(rTokens)
-    const has = liveChips.some((chip) => sigTokens(chip.dataset.refSig || '').some((tok) => rTokenSet.has(tok)))
-    if (!has) {
-      const chip = buildChip(refSig(r), r.kind, r.public_url)
-      el.appendChild(chip)
-      liveChips.push(chip)
+    if (!toks.some((tok) => allRefTokens.has(tok))) {
+      chip.remove()
     }
-  }
+  })
 }
 
 function renumberChips() {
@@ -719,8 +691,6 @@ function chooseAsset(a: PickerAsset) {
     emit('pick-asset', a)
   }
   const sig = assetSig(a)
-  // 用户主动重新引用 → 撤销之前的「已删」记录，让它恢复可被对账。
-  for (const tok of assetTokens(a)) dismissedTokens.value.delete(tok)
   insertAtTrigger(buildChip(sig, a.kind, a.url))
 }
 
@@ -875,10 +845,7 @@ function onKeydown(e: KeyboardEvent) {
     }
     if (chip) {
       e.preventDefault()
-      const sig = chip.dataset.refSig!
       // 删提示词不删素材：只从输入框里去掉这个 chip，素材仍留在素材条 / @ 列表。
-      // 记下它的所有 token，避免后续排序/新增触发对账时又把 chip 补回来（永久不出现）。
-      for (const tok of sigTokens(sig)) dismissedTokens.value.add(tok)
       // Record caret as a char offset at the chip's position, remove the chip,
       // then restore by offset. An empty text-node anchor would be wiped by
       // normalize(), dropping focus/caret — offset survives.
