@@ -123,6 +123,7 @@ export interface TaskRefAsset {
   size?: number | null
   width?: number | null
   height?: number | null
+  seedance_asset_id?: string | null
 }
 
 export interface TaskRow {

@@ -139,6 +139,15 @@ export class OnlineDataSource implements DataSource {
   async deleteAsset(id: string) {
     await $fetch(`/api/uploads/${id}`, { method: 'DELETE' })
   }
+  deleteRemoteAsset(id: string, opts?: { providerId?: number; taskId?: number }) {
+    const query: Record<string, string> = {}
+    if (opts?.providerId) query.provider_id = String(opts.providerId)
+    if (opts?.taskId) query.task_id = String(opts.taskId)
+    return $fetch<{ ok: boolean; message?: string }>(`/api/assets/${encodeURIComponent(id)}/remote`, {
+      method: 'DELETE',
+      query,
+    })
+  }
   async deleteTaskResult(taskId: number, idx: number) {
     await $fetch(`/api/tasks/${taskId}/result/${idx}`, { method: 'DELETE' })
   }

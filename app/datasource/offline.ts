@@ -490,6 +490,15 @@ export class OfflineDataSource implements DataSource {
     await idb.delete('assets', id)
   }
 
+  async deleteRemoteAsset(id: string): Promise<{ ok: boolean; message?: string }> {
+    const asset = await idb.get<any>('assets', id)
+    if (asset && asset.seedance_asset_id) {
+      delete asset.seedance_asset_id
+      await idb.put('assets', asset)
+    }
+    return { ok: true, message: '已从本地缓存移除远端素材关联' }
+  }
+
   async deleteTaskResult(_taskId: number, _idx: number): Promise<void> {
     // 离线暂不把生成结果登记为可复用素材，@ 选择器只有本地上传，故此处无对应素材可删。
   }

@@ -228,6 +228,21 @@ async function getAssetStatus(creds: ArkCreds, assetId: string): Promise<'Active
   return 'Missing'
 }
 
+// 删除虚拟人像库中的远端 asset。若上游返回 NotFound，幂等视为成功。
+export async function deleteArkAsset(provider: ProviderRecord, assetId: string): Promise<boolean> {
+  const creds = resolveCreds(provider)
+  if (!creds) throw new Error('该平台未配置素材库 AK/SK')
+  const resp = await arkRequest(creds, 'DeleteAsset', { Id: assetId, ProjectName: creds.projectName })
+  const e = arkError(resp)
+  if (e) {
+    if (e.code.includes('NotFound') || e.message.toLowerCase().includes('not found')) {
+      return true
+    }
+    throw new Error(`删除远端素材失败：${e.message}`)
+  }
+  return true
+}
+
 // ── 编排（供 taskrunner 两条路径复用）────────────────────────────────────────
 
 // 一个待入库的参考素材：db asset 行 id（写回缓存用）、public_url（content[] 里出现的原始 URL）、kind。

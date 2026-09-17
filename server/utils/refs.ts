@@ -16,6 +16,7 @@ type JoinedTaskAssetRow = {
   width: number | null
   height: number | null
   r2_key: string
+  seedance_asset_id: string | null
 }
 
 type RefsByKind = { image: TaskRefAsset[]; video: TaskRefAsset[]; audio: TaskRefAsset[] }
@@ -36,7 +37,8 @@ export async function loadTaskRefs(taskIds: number[], userId: number): Promise<M
   const rows = await useDb()
     .prepare(`
       SELECT ta.task_id, ta.kind, ta.idx, ta.asset_id,
-             a.filename, a.mime, a.size, a.width, a.height, a.r2_key
+             a.filename, a.mime, a.size, a.width, a.height, a.r2_key,
+             a.seedance_asset_id
       FROM task_assets ta
       JOIN assets a ON a.id = ta.asset_id AND a.user_id = ta.user_id
       WHERE ta.user_id = ? AND ta.task_id IN (${placeholders})
@@ -54,6 +56,7 @@ export async function loadTaskRefs(taskIds: number[], userId: number): Promise<M
       size: row.size,
       width: row.width,
       height: row.height,
+      seedance_asset_id: row.seedance_asset_id,
     })
     map.set(row.task_id, bucket)
   }

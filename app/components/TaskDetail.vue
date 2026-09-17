@@ -19,6 +19,8 @@ const displayPrompt = computed(() => {
 // Fullscreen via shared global viewer (overview reference assets are clickable)
 const { open: openFullscreen } = useFullscreenViewer()
 const { isSyncing, syncTask } = useTaskSync()
+const notify = useNotify()
+const confirm = useConfirm()
 
 // Seedance 成本（仅 doubao-video 成功任务）。
 const cost = computed(() => computeTaskCost(props.task))
@@ -206,6 +208,76 @@ const totalRefs = computed(() => {
   if (!r) return 0
   return r.image.length + r.video.length + r.audio.length
 })
+
+const allRefs = computed(() => {
+  const r = props.task.refs
+  if (!r) return []
+  return [...(r.image || []), ...(r.video || []), ...(r.audio || [])]
+})
+
+const remoteAssetCount = computed(() => {
+  return allRefs.value.filter((r) => !!r.seedance_asset_id).length
+})
+
+const deletingAssetId = ref<string | null>(null)
+const deletingAllRemote = ref(false)
+
+async function handleDeleteRemoteAsset(r: { asset_id: string; seedance_asset_id?: string | null }) {
+  if (!r.seedance_asset_id && !r.asset_id) return
+  const idToDelete = r.seedance_asset_id || r.asset_id
+  const ok = await confirm({
+    title: '删除远端素材',
+    description: `确定从火山方舟虚拟人像库中删除该素材（${r.seedance_asset_id || r.asset_id}）吗？\n注意：不会删除 Cloudflare R2 中的资源文件，仅从火山远端移除。`,
+    confirmText: '确定删除',
+    cancelText: '取消',
+    danger: true,
+  })
+  if (!ok) return
+
+  deletingAssetId.value = r.asset_id
+  try {
+    const res = await useDataSource().deleteRemoteAsset(idToDelete, {
+      providerId: props.task.provider_id ?? undefined,
+      taskId: props.task.id,
+    })
+    r.seedance_asset_id = null
+    notify.success('删除成功', res?.message || '已从火山虚拟人像库删除该素材')
+  } catch (err: any) {
+    notify.error('删除失败', err?.data?.statusMessage || err?.message || '删除远端素材失败')
+  } finally {
+    deletingAssetId.value = null
+  }
+}
+
+async function handleDeleteAllRemoteAssets() {
+  const targets = allRefs.value.filter((r) => !!r.seedance_asset_id)
+  if (!targets.length) return
+  const ok = await confirm({
+    title: '删除本任务所有远端素材',
+    description: `确定从火山方舟虚拟人像库中删除本任务引用的 ${targets.length} 个远端素材吗？\n注意：不会删除 Cloudflare R2 中的资源文件，仅从火山远端移除。`,
+    confirmText: '确定删除',
+    cancelText: '取消',
+    danger: true,
+  })
+  if (!ok) return
+
+  deletingAllRemote.value = true
+  try {
+    for (const r of targets) {
+      const idToDelete = r.seedance_asset_id || r.asset_id
+      await useDataSource().deleteRemoteAsset(idToDelete, {
+        providerId: props.task.provider_id ?? undefined,
+        taskId: props.task.id,
+      })
+      r.seedance_asset_id = null
+    }
+    notify.success('删除成功', `已从火山虚拟人像库删除 ${targets.length} 个远端素材`)
+  } catch (err: any) {
+    notify.error('删除失败', err?.data?.statusMessage || err?.message || '批量删除远端素材失败')
+  } finally {
+    deletingAllRemote.value = false
+  }
+}
 
 // 与实际适配器和服务端 curl 共用同一份端点规则。
 const requestEndpoint = computed(() => taskEndpoint(props.task, props.task.provider_base_url || ''))
@@ -464,43 +536,116 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
       </section>
 
       <section v-if="totalRefs > 0">
-        <div class="label-uppercase mb-2">参考素材 · {{ totalRefs }}</div>
+        <div class="mb-2 flex items-center justify-between">
+          <div class="label-uppercase">参考素材 · {{ totalRefs }}</div>
+          <button
+            v-if="remoteAssetCount > 0 && !preview"
+            type="button"
+            class="pill-btn text-red-500 hover:text-red-600"
+            :disabled="deletingAllRemote || !!deletingAssetId"
+            title="从火山方舟虚拟人像库删除本任务引用的远端素材（保留 R2 文件）"
+            @click="handleDeleteAllRemoteAssets"
+          >
+            <UIcon
+              :name="deletingAllRemote ? 'i-carbon-circle-dash' : 'i-carbon-trash-can'"
+              class="h-3.5 w-3.5"
+              :class="{ 'animate-spin': deletingAllRemote }"
+            />
+            {{ deletingAllRemote ? '正在删除…' : '删除远端素材' }}
+          </button>
+        </div>
         <div class="space-y-3">
           <div v-if="task.refs?.image?.length">
             <div class="mb-1.5 text-[12px] font-medium text-[var(--c-fg-4)]">参考图 · {{ task.refs.image.length }}</div>
             <div class="grid grid-cols-4 gap-2 sm:grid-cols-5">
-              <button
+              <div
                 v-for="r in task.refs.image"
                 :key="r.asset_id"
-                type="button"
-                class="group relative block aspect-square overflow-hidden rounded-[4px] border border-[var(--c-border)] bg-[var(--c-surface-2)] transition hover:border-primary-500"
-                title="点击全屏查看"
-                @click="openFullscreen(r.public_url, 'image')"
+                class="group relative flex flex-col"
               >
-                <img :src="r.public_url" class="h-full w-full object-cover" :alt="r.filename || ''" loading="lazy" />
-                <span class="absolute inset-0 hidden place-items-center bg-black/30 group-hover:grid">
-                  <UIcon name="i-carbon-zoom-in" class="h-5 w-5 text-white" />
-                </span>
-              </button>
+                <div class="relative aspect-square overflow-hidden rounded-[4px] border border-[var(--c-border)] bg-[var(--c-surface-2)] transition hover:border-primary-500">
+                  <img :src="r.public_url" class="h-full w-full object-cover" :alt="r.filename || ''" loading="lazy" />
+                  <span
+                    class="absolute inset-0 grid place-items-center bg-black/30 opacity-0 transition group-hover:opacity-100 cursor-pointer"
+                    title="点击全屏查看"
+                    @click="openFullscreen(r.public_url, 'image')"
+                  >
+                    <UIcon name="i-carbon-zoom-in" class="h-5 w-5 text-white" />
+                  </span>
+                  <button
+                    v-if="r.seedance_asset_id && !preview"
+                    type="button"
+                    class="absolute top-1 right-1 z-10 grid h-6 w-6 place-items-center rounded bg-black/60 text-white/90 opacity-0 transition group-hover:opacity-100 hover:bg-red-600 hover:text-white"
+                    :title="`从火山方舟素材库删除远端素材 (${r.seedance_asset_id})`"
+                    :disabled="deletingAssetId === r.asset_id"
+                    @click.stop="handleDeleteRemoteAsset(r)"
+                  >
+                    <UIcon
+                      :name="deletingAssetId === r.asset_id ? 'i-carbon-circle-dash' : 'i-carbon-trash-can'"
+                      class="h-3.5 w-3.5"
+                      :class="{ 'animate-spin': deletingAssetId === r.asset_id }"
+                    />
+                  </button>
+                </div>
+                <div v-if="r.seedance_asset_id && !preview" class="mt-1 flex items-center justify-between gap-1">
+                  <span class="truncate font-mono text-[10px] text-[var(--c-fg-4)]" :title="r.seedance_asset_id">{{ r.seedance_asset_id }}</span>
+                  <button
+                    type="button"
+                    class="text-[10px] text-red-500 hover:underline flex-shrink-0"
+                    :disabled="deletingAssetId === r.asset_id"
+                    @click="handleDeleteRemoteAsset(r)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <div v-if="task.refs?.video?.length">
             <div class="mb-1.5 text-[12px] font-medium text-[var(--c-fg-4)]">参考视频 · {{ task.refs.video.length }}</div>
             <div class="grid grid-cols-3 gap-2">
-              <button
+              <div
                 v-for="r in task.refs.video"
                 :key="r.asset_id"
-                type="button"
-                class="group relative block aspect-square overflow-hidden rounded-[4px] border border-[var(--c-border)] bg-black transition hover:border-primary-500"
-                title="点击全屏查看"
-                @click="openFullscreen(r.public_url, 'video')"
+                class="group relative flex flex-col"
               >
-                <video :src="r.public_url" class="h-full w-full object-cover" muted playsinline preload="metadata" />
-                <span class="absolute inset-0 grid place-items-center bg-black/20 transition group-hover:bg-black/40">
-                  <UIcon name="i-carbon-zoom-in" class="hidden h-5 w-5 text-white group-hover:block" />
-                  <UIcon name="i-carbon-play-filled-alt" class="h-6 w-6 text-white/80 group-hover:hidden" />
-                </span>
-              </button>
+                <div class="relative aspect-square overflow-hidden rounded-[4px] border border-[var(--c-border)] bg-black transition hover:border-primary-500">
+                  <video :src="r.public_url" class="h-full w-full object-cover" muted playsinline preload="metadata" />
+                  <span
+                    class="absolute inset-0 grid place-items-center bg-black/20 transition group-hover:bg-black/40 cursor-pointer"
+                    title="点击全屏查看"
+                    @click="openFullscreen(r.public_url, 'video')"
+                  >
+                    <UIcon name="i-carbon-zoom-in" class="hidden h-5 w-5 text-white group-hover:block" />
+                    <UIcon name="i-carbon-play-filled-alt" class="h-6 w-6 text-white/80 group-hover:hidden" />
+                  </span>
+                  <button
+                    v-if="r.seedance_asset_id && !preview"
+                    type="button"
+                    class="absolute top-1 right-1 z-10 grid h-6 w-6 place-items-center rounded bg-black/60 text-white/90 opacity-0 transition group-hover:opacity-100 hover:bg-red-600 hover:text-white"
+                    :title="`从火山方舟素材库删除远端素材 (${r.seedance_asset_id})`"
+                    :disabled="deletingAssetId === r.asset_id"
+                    @click.stop="handleDeleteRemoteAsset(r)"
+                  >
+                    <UIcon
+                      :name="deletingAssetId === r.asset_id ? 'i-carbon-circle-dash' : 'i-carbon-trash-can'"
+                      class="h-3.5 w-3.5"
+                      :class="{ 'animate-spin': deletingAssetId === r.asset_id }"
+                    />
+                  </button>
+                </div>
+                <div v-if="r.seedance_asset_id && !preview" class="mt-1 flex items-center justify-between gap-1">
+                  <span class="truncate font-mono text-[10px] text-[var(--c-fg-4)]" :title="r.seedance_asset_id">{{ r.seedance_asset_id }}</span>
+                  <button
+                    type="button"
+                    class="text-[10px] text-red-500 hover:underline flex-shrink-0"
+                    :disabled="deletingAssetId === r.asset_id"
+                    @click="handleDeleteRemoteAsset(r)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <div v-if="task.refs?.audio?.length">
@@ -513,7 +658,23 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
               >
                 <UIcon name="i-carbon-music" class="h-4 w-4 flex-shrink-0 text-[var(--c-fg-4)]" />
                 <span class="w-24 flex-shrink-0 truncate text-[12px] text-[var(--c-fg)]">{{ r.filename || r.asset_id }}</span>
+                <span v-if="r.seedance_asset_id && !preview" class="font-mono text-[11px] text-[var(--c-fg-4)] truncate" :title="r.seedance_asset_id">{{ r.seedance_asset_id }}</span>
                 <audio :src="r.public_url" controls class="h-7 flex-1" />
+                <button
+                  v-if="r.seedance_asset_id && !preview"
+                  type="button"
+                  class="pill-btn text-red-500 hover:text-red-600"
+                  :disabled="deletingAssetId === r.asset_id"
+                  title="从火山方舟素材库删除远端素材"
+                  @click="handleDeleteRemoteAsset(r)"
+                >
+                  <UIcon
+                    :name="deletingAssetId === r.asset_id ? 'i-carbon-circle-dash' : 'i-carbon-trash-can'"
+                    class="h-3.5 w-3.5"
+                    :class="{ 'animate-spin': deletingAssetId === r.asset_id }"
+                  />
+                  删除远端
+                </button>
               </div>
             </div>
           </div>

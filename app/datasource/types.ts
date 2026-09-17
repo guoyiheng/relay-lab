@@ -69,6 +69,7 @@ export interface DataSource {
   /** 把一批待上传/待导入的参考素材解析成 asset id；保持顺序，任一失败则整体拒绝。 */
   resolveRefIds(items: RefResolveItem[]): Promise<string[]>
   deleteAsset(id: string): Promise<void>
+  deleteRemoteAsset(id: string, opts?: { providerId?: number; taskId?: number }): Promise<{ ok: boolean; message?: string }>
   deleteTaskResult(taskId: number, idx: number): Promise<void>
 
   // ── 提示词辅助 Prompt ────────────────────────────────────────────
