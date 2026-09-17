@@ -241,12 +241,21 @@ export function providerHasArkCreds(provider: ProviderRecord): boolean {
   return !!resolveCreds(provider)
 }
 
-// 确保该平台有可用的 AIGC 素材组 id：优先用缓存列，否则 List 命中复用 / Create 新建，回写 providers 行。
+// 确保该平台有可用的 AIGC 素材组 id：优先用缓存列（校验上游有效性），否则 List 命中复用 / Create 新建，回写 providers 行。
 export async function ensureAssetGroupId(provider: ProviderRecord): Promise<string> {
   const creds = resolveCreds(provider)
   if (!creds) throw new Error('该平台未配置素材库 AK/SK')
   const cached = (provider.ark_asset_group_id || '').trim()
-  if (cached) return cached
+  if (cached) {
+    try {
+      const groupResp = await arkRequest(creds, 'GetAssetGroup', { Id: cached, ProjectName: creds.projectName })
+      if (!arkError(groupResp) && groupResp?.Result?.Id) {
+        return cached
+      }
+    } catch {
+      // 查询报错或网络异常，继续向下探测/重建
+    }
+  }
   let groupId = await listAssetGroupId(creds, GROUP_NAME)
   if (!groupId) groupId = await createAssetGroup(creds, GROUP_NAME)
   try {
@@ -256,7 +265,7 @@ export async function ensureAssetGroupId(provider: ProviderRecord): Promise<stri
   return groupId
 }
 
-// 对每个参考素材确保有 asset id（幂等）：命中 assets.seedance_asset_id 缓存则直接用；
+// 对每个参考素材确保有 asset id（幂等）：命中 assets.seedance_asset_id 缓存且在当前项目有效则直接用；
 // 否则 CreateAsset 拿 id 并写回缓存。不等待 Active。返回 public_url → assetId 映射 + 全部 assetId 列表。
 export async function ensureAssetIds(
   provider: ProviderRecord,
@@ -279,10 +288,32 @@ export async function ensureAssetIds(
     for (const r of rows) cacheById.set(r.id, r.seedance_asset_id)
   }
 
+  let activeGroupId = groupId
   for (const item of items) {
     let assetId = (cacheById.get(item.assetDbId) || '').trim()
+    // 若缓存的 assetId 在当前项目空间不存在或已被删，主动失效并重新入库
+    if (assetId) {
+      const status = await getAssetStatus(creds, assetId)
+      if (status === 'Missing') {
+        assetId = ''
+      }
+    }
     if (!assetId) {
-      assetId = await createAsset(creds, groupId, item.public_url, item.assetDbId, item.kind)
+      try {
+        assetId = await createAsset(creds, activeGroupId, item.public_url, item.assetDbId, item.kind)
+      } catch (err: any) {
+        // 若素材组失效，重新获取/创建素材组后重试一次
+        if (err?.message?.includes('NotFound.group_id') || err?.message?.includes('asset_group')) {
+          activeGroupId = await createAssetGroup(creds, GROUP_NAME)
+          try {
+            await db.prepare('UPDATE providers SET ark_asset_group_id = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+              .run(activeGroupId, Date.now(), provider.id, provider.user_id)
+          } catch { /* ignore */ }
+          assetId = await createAsset(creds, activeGroupId, item.public_url, item.assetDbId, item.kind)
+        } else {
+          throw err
+        }
+      }
       try {
         await db.prepare('UPDATE assets SET seedance_asset_id = ? WHERE id = ? AND user_id = ?').run(assetId, item.assetDbId, provider.user_id)
       } catch { /* 缓存写失败不影响本次 */ }
