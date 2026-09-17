@@ -132,38 +132,20 @@ const visibleFavorites = computed(() => filteredFavorites.value.slice(0, visible
 
 // Signatures of refs already added to the prompt, so the @ list can surface a
 // "已选" group at the top — and so library rows for already-picked assets are
-// filtered out (dedup). Matching is robust across id/url/sig forms because a
-// generated asset's library identity (url:<resultUrl>) differs from its ref
-// identity after import (id:<uploadId> + /uploads/ url); we collect every token
-// each side could present and intersect them.
+// filtered out (dedup). Matching is robust across id/url/sig forms.
 function refTokens(r: RefChip): string[] {
-  const t: string[] = []
-  if (r.sig) t.push(r.sig)
-  if (r.id) t.push(`id:${r.id}`)
-  if (r.public_url) {
-    t.push(`url:${r.public_url}`)
-    const m = r.public_url.match(/\/uploads\/([^/?#]+)/)
-    if (m) t.push(`id:${m[1]}`)
-  }
-  return t
+  return getRefTokens(r as any)
 }
 function assetTokens(a: PickerAsset): string[] {
-  const t: string[] = [assetSig(a)]
-  if (a.id) t.push(`id:${a.id}`)
-  if (a.url) {
-    t.push(`url:${a.url}`)
-    const m = a.url.match(/\/uploads\/([^/?#]+)/)
-    if (m) t.push(`id:${m[1]}`)
-  }
-  return t
+  return getRefTokens(a)
 }
 const selectedSigs = computed(() => {
   const s = new Set<string>()
-  for (const r of (props.mentionedRefs || [])) for (const tok of refTokens(r as RefChip)) s.add(tok)
+  for (const r of (props.mentionedRefs || [])) for (const tok of getRefTokens(r as any)) s.add(tok)
   return s
 })
 function isSelected(a: PickerAsset): boolean {
-  return assetTokens(a).some((tok) => selectedSigs.value.has(tok))
+  return getRefTokens(a).some((tok) => selectedSigs.value.has(tok))
 }
 // 已选 group is built from the CURRENT refs (mentionedRefs) — this includes
 // local pending uploads that aren't in /api/assets yet (item 5). Each chip is
@@ -174,10 +156,12 @@ const selectedAssets = computed<PickerAsset[]>(() => {
     .filter((r) => !props.allowKinds.length || props.allowKinds.includes(r.kind))
     .map((r) => {
       const rc = r as RefChip
-      const sig = refSig(rc)
+      const sig = canonicalRefSig(rc)
+      const cleanId = rc.id?.replace(/^id:/, '').trim() || ''
+      const hasRealId = cleanId && !cleanId.startsWith('file:') && !cleanId.startsWith('url:') && !cleanId.startsWith('blob:') && !cleanId.startsWith('task:')
       return {
-        source: rc.id ? 'upload' : 'generated',
-        id: rc.id || sig,
+        source: hasRealId ? 'upload' : 'generated',
+        id: hasRealId ? cleanId : sig,
         kind: rc.kind,
         url: rc.public_url,
         filename: rc.filename,
@@ -232,11 +216,11 @@ function kindLabel(k: string) {
 }
 
 function assetSig(a: PickerAsset): string {
-  return a.source === 'upload' ? `id:${a.id}` : `url:${a.url}`
+  return canonicalRefSig(a)
 }
 // Signature of a current ref chip (mirrors index.vue's refSig).
 function refSig(r: RefChip): string {
-  return r.sig || (r.id ? `id:${r.id}` : `url:${r.public_url}`)
+  return canonicalRefSig(r)
 }
 
 // ── DOM ↔ model serialization ─────────────────────────────────
@@ -312,13 +296,7 @@ function refIndexBySig(): Map<string, number> {
 // (mirrors refTokens on the ref side): a generated asset's chip sig is url:…
 // while its ref sig is id:…, so exact equality would miss — intersect tokens.
 function sigTokens(sig: string): string[] {
-  const t = [sig]
-  if (sig.startsWith('id:')) return t
-  if (sig.startsWith('url:')) {
-    const m = sig.match(/\/uploads\/([^/?#]+)/)
-    if (m) t.push(`id:${m[1]}`)
-  }
-  return t
+  return getRefTokens({ sig })
 }
 
 function reconcileChips() {
@@ -735,8 +713,11 @@ function insertAtTrigger(content: Node | string) {
 
 
 function chooseAsset(a: PickerAsset) {
-  // Add it as a reference (parent dedups), then drop an inline chip at the @.
-  emit('pick-asset', a)
+  // 已在参考素材条中的素材不重复请求添加，直接在输入框插入引用 chip
+  const alreadySelected = isSelected(a) || (props.mentionedRefs || []).some((r) => isSameRef(r as any, a))
+  if (!alreadySelected) {
+    emit('pick-asset', a)
+  }
   const sig = assetSig(a)
   // 用户主动重新引用 → 撤销之前的「已删」记录，让它恢复可被对账。
   for (const tok of assetTokens(a)) dismissedTokens.value.delete(tok)

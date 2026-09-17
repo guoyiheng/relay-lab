@@ -129,16 +129,19 @@ const allowKinds = computed(() =>
 // @ mention picks an asset → add to refs. Both local & generated assets now
 // carry a real asset id (统一 assets 表), so a generated result reused as a
 // reference is referenced by its id directly — no re-download/re-import.
-// Dedup by signature so the same asset can't be added twice.
+// Dedup robustly across url/id/sig so the same asset can't be added twice.
 function addMentionedAsset(asset: { source: string; id: string; kind: 'image' | 'video' | 'audio'; url: string; filename: string | null }) {
   const k = asset.kind
   if (refLimits.value[k] === 0) return
   if (refs.value[k].length >= refLimits.value[k]) return
-  const sig = asset.id ? `id:${asset.id}` : `url:${asset.url}`
-  if (refs.value[k].some((i) => (i.sig || (i.id ? `id:${i.id}` : `url:${i.public_url}`)) === sig)) return
+  if (refs.value[k].some((i) => isSameRef(i, asset))) return
+
+  const cleanId = asset.id?.replace(/^id:/, '').trim() || ''
+  const isRealAssetId = cleanId && !cleanId.startsWith('file:') && !cleanId.startsWith('url:') && !cleanId.startsWith('blob:') && !cleanId.startsWith('task:')
+  const sig = canonicalRefSig(asset)
   // 有 asset id 直接引用；极端兜底（无 id）才走 URL 导入。
-  const item: UploadItem = asset.id
-    ? { id: asset.id, kind: k, filename: asset.filename, public_url: asset.url, sig }
+  const item: UploadItem = isRealAssetId
+    ? { id: cleanId, kind: k, filename: asset.filename, public_url: asset.url, sig }
     : { id: '', kind: k, filename: asset.filename, public_url: asset.url, pending: true, sig }
   refs.value = { ...refs.value, [k]: [...refs.value[k], item] }
 }
@@ -195,7 +198,7 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
     delete (base as any).resolution
     delete (base as any).generate_audio
     const size = String(base.size || '2K')
-    const watermark = base.watermark !== undefined ? !!base.watermark : true
+    const watermark = paramMode.value === 'form' ? false : (base.watermark !== undefined ? !!base.watermark : false)
     delete (base as any).size
     delete (base as any).watermark
     delete (base as any).response_format
@@ -333,7 +336,13 @@ function refreshTasks() { void tasksStore.loadAll(true) }
 
 function parseParams(): Record<string, unknown> | null {
   jsonParamsError.value = null
-  if (paramMode.value === 'form') return { ...formParams.value }
+  if (paramMode.value === 'form') {
+    const p = { ...formParams.value }
+    if (apiFormat.value === 'doubao-video' && kind.value === 'image') {
+      delete p.watermark
+    }
+    return p
+  }
   const txt = jsonParamsText.value.trim()
   if (!txt) return {}
   try {

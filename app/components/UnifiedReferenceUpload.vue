@@ -78,13 +78,12 @@ function kindLabel(k: string) {
 }
 
 function sigOf(item: UploadItem): string {
-  if (item.id) return `id:${item.id}`
-  if (item.file) return `file:${item.file.name}|${item.file.size}|${item.file.lastModified}`
-  return `url:${item.public_url}`
+  return canonicalRefSig(item)
 }
 
-function hasDup(k: 'image' | 'video' | 'audio', sig: string): boolean {
-  return props.modelValue[k].some((i) => sigOf(i) === sig)
+function hasDup(k: 'image' | 'video' | 'audio', itemOrSig: AnyRefItem | string): boolean {
+  const target: AnyRefItem = typeof itemOrSig === 'string' ? { sig: itemOrSig } : itemOrSig
+  return props.modelValue[k].some((i) => isSameRef(i, target))
 }
 
 function triggerPick() {
@@ -113,7 +112,7 @@ function addLocalFiles(files: File[]) {
     if (props.offline && k === 'video') { error.value = '离线模式参考视频请用「视频链接」添加'; continue }
     if (next[k].length >= props.limits[k]) { error.value = `${kindLabel(k)}已达上限 ${props.limits[k]}`; continue }
     const sig = `file:${file.name}|${file.size}|${file.lastModified}`
-    if (next[k].some((i) => sigOf(i) === sig)) continue // dedup
+    if (next[k].some((i) => isSameRef(i, { sig, file }))) continue // dedup
     next[k].push({
       id: '',
       kind: k,
@@ -171,7 +170,7 @@ async function enforceVideoLimit(sig: string, url: string) {
 
 function remove(item: UploadItem) {
   if (item.pending && item.public_url.startsWith('blob:')) URL.revokeObjectURL(item.public_url)
-  const filterK = (arr: UploadItem[]) => arr.filter((i) => sigOf(i) !== sigOf(item))
+  const filterK = (arr: UploadItem[]) => arr.filter((i) => !isSameRef(i, item))
   emit('update:modelValue', {
     image: filterK(props.modelValue.image),
     video: filterK(props.modelValue.video),
@@ -203,12 +202,14 @@ function addExternalAsset(asset: { source: string; id: string; kind: 'image' | '
   const k = asset.kind
   if (props.limits[k] === 0) { error.value = `当前模型不支持${kindLabel(k)}素材`; return }
   if (props.modelValue[k].length >= props.limits[k]) { error.value = '已达该类型上限'; return }
-  // upload source → known id; generated → mark pending-import via file=undefined + remote url
-  const isUpload = asset.source === 'upload'
-  const item: UploadItem = isUpload
-    ? { id: asset.id, kind: k, filename: asset.filename, public_url: asset.url, sig: `id:${asset.id}` }
-    : { id: '', kind: k, filename: asset.filename, public_url: asset.url, pending: true, sig: `url:${asset.url}` }
-  if (hasDup(k, item.sig!)) return
+  if (hasDup(k, asset)) return
+
+  const cleanId = asset.id?.replace(/^id:/, '').trim() || ''
+  const isRealAssetId = cleanId && !cleanId.startsWith('file:') && !cleanId.startsWith('url:') && !cleanId.startsWith('blob:') && !cleanId.startsWith('task:')
+  const sig = canonicalRefSig(asset)
+  const item: UploadItem = isRealAssetId
+    ? { id: cleanId, kind: k, filename: asset.filename, public_url: asset.url, sig }
+    : { id: '', kind: k, filename: asset.filename, public_url: asset.url, pending: true, sig }
   error.value = null
   emit('update:modelValue', { ...props.modelValue, [k]: [...props.modelValue[k], item] })
   if (k === 'video' && props.videoMaxHeight > 0) void enforceVideoLimit(item.sig!, item.public_url)
@@ -225,7 +226,7 @@ function submitUrl() {
   if (props.limits.video === 0) { error.value = '当前模型不支持视频素材'; return }
   if (props.modelValue.video.length >= props.limits.video) { error.value = `视频已达上限 ${props.limits.video}`; return }
   const sig = `url:${url}`
-  if (hasDup('video', sig)) { urlInput.value = ''; urlAdding.value = false; return }
+  if (hasDup('video', { sig, url })) { urlInput.value = ''; urlAdding.value = false; return }
   error.value = null
   const item: UploadItem = { id: '', kind: 'video', filename: null, public_url: url, pending: true, sig }
   emit('update:modelValue', { ...props.modelValue, video: [...props.modelValue.video, item] })
