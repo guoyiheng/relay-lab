@@ -14,7 +14,7 @@ const ARK_VERSION = '2024-01-01'
 const DEFAULT_REGION = 'ap-southeast-1'
 const DEFAULT_PROJECT = 'default'
 const GROUP_TYPE = 'AIGC'
-const GROUP_NAME = 'relay-lab'
+const GROUP_NAME = 'assets'
 
 // 控制面 host：国内火山 ark.<region>.volcengineapi.com / 海外 BytePlus ark.<region>.byteplusapi.com。
 function arkHost(region: string, baseUrl?: string): string {
