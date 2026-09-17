@@ -67,7 +67,7 @@ async function persistResultToR2(
 
 // 把终态结果写回 tasks 行（含结果转存 R2 + 登记为可复用的 generated 素材）。
 // latencyMs 可选（队列路径用 startedAt 算）。kind 用于给 generated asset 打类型标签。
-async function persistTerminal(taskId: number, r: AdapterResult, latencyMs: number | null, kind?: ModelKind) {
+export async function persistTerminal(taskId: number, r: AdapterResult, latencyMs: number | null, kind?: ModelKind) {
   const db = useDb()
   const owner = await db.prepare(`
     SELECT t.user_id, u.storage_namespace

@@ -90,7 +90,6 @@ const doubaoSize = computed(() => {
   if (props.modelValue.image_resolution) return String(props.modelValue.image_resolution)
   return '2K'
 })
-const doubaoWatermark = computed(() => props.modelValue.watermark !== false)
 
 const temperature = computed(() => Number(props.modelValue.temperature ?? 1))
 
@@ -416,12 +415,6 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
             @click="patch({ size: r })"
           >{{ r }}</button>
         </div>
-      </div>
-      <div class="grid grid-cols-2 gap-2">
-        <label class="flex items-center justify-between rounded-[4px] border border-[var(--c-border)] px-3 py-1.5">
-          <span class="text-[12px] text-[var(--c-fg-2)]">水印</span>
-          <USwitch size="xs" :model-value="doubaoWatermark" @update:model-value="(v: boolean) => patch({ watermark: v })" />
-        </label>
       </div>
     </template>
 

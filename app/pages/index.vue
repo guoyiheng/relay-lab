@@ -17,6 +17,7 @@ const providersStore = useProvidersStore()
 const tasksStore = useTasksStore()
 const notify = useNotify()
 const confirm = useConfirm()
+const { isSyncing, syncTask } = useTaskSync()
 const { open: openFullscreen } = useFullscreenViewer()
 // 混音台平台顺序统一按名称排序（#5）。全量列表（含停用）——历史任务的成本/模型解析仍需查停用平台。
 const providers = computed(() => providersStore.byName as ProviderWithModels[])
@@ -1089,8 +1090,23 @@ function toggleRail() {
             </span>
           </span>
         </div>
-        <!-- 结果操作区: 复刻参数 → 下载 → 删除 (全屏在预览区，不重复) -->
+        <!-- 结果操作区: 手动查询(视频) → 复刻参数 → 下载 → 删除 (全屏在预览区，不重复) -->
         <div class="flex items-center gap-1.5">
+          <button
+            v-if="activeTask.kind === 'video' && activeTask.remote_task_id"
+            type="button"
+            class="pill-btn"
+            :disabled="isSyncing(activeTask.id)"
+            title="向平台主动查询一次任务状态"
+            @click="syncTask(activeTask)"
+          >
+            <UIcon
+              :name="isSyncing(activeTask.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+              class="h-3.5 w-3.5"
+              :class="{ 'animate-spin': isSyncing(activeTask.id) }"
+            />
+            {{ isSyncing(activeTask.id) ? '正在查询…' : '手动查询' }}
+          </button>
           <button type="button" class="pill-btn" title="把本次任务的平台/模型/参数/提示词/参考素材回填到创作区，便于改一改重跑"
             @click="retryTask(activeTask)">
             <UIcon name="i-carbon-copy" class="h-3.5 w-3.5" /> 复刻参数

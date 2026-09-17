@@ -67,6 +67,12 @@ export const useTasksStore = defineStore('tasks', {
       if (idx >= 0) this.tasks[idx] = { ...this.tasks[idx], ...task }
       return task
     },
+    async syncTask(id: number): Promise<TaskRow> {
+      const task = await useDataSource().syncTask(id)
+      this.upsert(task)
+      if (TERMINAL.has(task.status)) this.polling.delete(id)
+      return task
+    },
     upsert(task: TaskRow) {
       const idx = this.tasks.findIndex((t) => t.id === task.id)
       const current = idx >= 0 ? this.tasks[idx] : null

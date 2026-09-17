@@ -17,7 +17,7 @@ import { shellSingleQuote, taskEndpoint } from '~~/shared/task-curl'
 import { normalizeProviderUrl } from '~~/shared/provider-url'
 import type { DataSource } from './types'
 import { idb } from './idb'
-import { runOfflineTask, resumeOfflineTaskPolls, hydrateOfflineTask, type OfflineTaskRecord } from './offline-task'
+import { runOfflineTask, resumeOfflineTaskPolls, hydrateOfflineTask, syncOfflineTask, type OfflineTaskRecord } from './offline-task'
 
 function now() { return Date.now() }
 function maskKey(key: string): string {
@@ -373,6 +373,10 @@ export class OfflineDataSource implements DataSource {
       : { ...cur, sensitive: result }
     await idb.put('tasks', { ...task, analysis: merged, updated_at: now() })
     return { analysis: merged }
+  }
+
+  syncTask(id: number): Promise<TaskRow> {
+    return syncOfflineTask(id)
   }
 
   async taskCurl(id: number): Promise<{ curl: string }> {

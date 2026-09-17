@@ -602,10 +602,15 @@ export async function submitAsyncTask(opts: {
   if (!taskId) {
     return { ok: false, submitResp: resp, error_message: format === 'doubao-video' ? '创建任务后未返回任务 ID' : '提交任务后未返回 task_id' }
   }
-  const pollUrl = format === 'doubao-video'
+  const pollUrl = buildPollUrl(format, baseUrl, kind, taskId)
+  return { ok: true, taskId, pollUrl, submitResp: resp }
+}
+
+// 构造异步任务单次轮询 URL（与 submitAsyncTask 约定一致）。
+export function buildPollUrl(format: ApiFormat, baseUrl: string, kind: ModelKind, taskId: string): string {
+  return format === 'doubao-video'
     ? joinUrl(baseUrl, `contents/generations/tasks/${encodeURIComponent(taskId)}`)
     : joinUrl(baseUrl, `${resourcePath(kind)}/tasks/${encodeURIComponent(taskId)}`)
-  return { ok: true, taskId, pollUrl, submitResp: resp }
 }
 
 // 单次轮询（消费者 poll 阶段）：GET 一次 pollUrl 并按 format 判读。
@@ -670,7 +675,7 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
       delete (cleanParams as any).use_asset_library
       const refImages = collectImageRefs(ctx)
       const size = String(cleanParams.size || '2K')
-      const watermark = cleanParams.watermark !== undefined ? !!cleanParams.watermark : true
+      const watermark = cleanParams.watermark !== undefined ? !!cleanParams.watermark : false
       const imageInParams = cleanParams.image
       delete (cleanParams as any).size
       delete (cleanParams as any).watermark

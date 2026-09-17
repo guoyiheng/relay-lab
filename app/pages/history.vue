@@ -63,6 +63,14 @@ async function openDetail(id: number) {
   }
 }
 
+const { isSyncing, syncTask: doSync } = useTaskSync()
+async function syncDetail(t: TaskRow) {
+  const updated = await doSync(t)
+  if (updated && detailTask.value?.id === updated.id) {
+    detailTask.value = updated
+  }
+}
+
 const KIND_OPTIONS = [
   { value: null, label: '全部类型' },
   { value: 'image', label: '图像' },
@@ -570,6 +578,21 @@ function scoreColor(s: number): string {
               </span>
             </span>
             <span v-if="detailTask.http_status" class="font-mono">HTTP {{ detailTask.http_status }}</span>
+            <button
+              v-if="detailTask.kind === 'video' && detailTask.remote_task_id"
+              type="button"
+              class="pill-btn"
+              :disabled="isSyncing(detailTask.id)"
+              title="向平台主动查询一次任务状态"
+              @click="syncDetail(detailTask)"
+            >
+              <UIcon
+                :name="isSyncing(detailTask.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+                class="h-3.5 w-3.5"
+                :class="{ 'animate-spin': isSyncing(detailTask.id) }"
+              />
+              {{ isSyncing(detailTask.id) ? '正在查询…' : '手动查询' }}
+            </button>
             <UButton size="xs" variant="ghost" color="neutral" icon="i-carbon-close"
               aria-label="关闭任务详情" title="关闭任务详情" @click="closeDetail" />
           </div>

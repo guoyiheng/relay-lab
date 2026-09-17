@@ -99,6 +99,9 @@ export class OnlineDataSource implements DataSource {
   analyzeTask(id: number, type: 'structured' | 'sensitive') {
     return $fetch<{ analysis: unknown }>(`/api/tasks/${id}/analyze`, { method: 'POST', body: { type } })
   }
+  syncTask(id: number) {
+    return $fetch<TaskRow>(`/api/tasks/${id}/sync`, { method: 'POST' })
+  }
   taskCurl(id: number) {
     return $fetch<{ curl: string }>(`/api/tasks/${id}/curl`)
   }

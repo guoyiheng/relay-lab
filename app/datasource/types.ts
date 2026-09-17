@@ -60,6 +60,7 @@ export interface DataSource {
   deleteTask(id: number): Promise<void>
   setFavorite(id: number, favorite: boolean): Promise<void>
   analyzeTask(id: number, type: 'structured' | 'sensitive'): Promise<{ analysis: unknown }>
+  syncTask(id: number): Promise<TaskRow>
   taskCurl(id: number): Promise<{ curl: string }>
   taskStats(): Promise<StatsRow[]>
 

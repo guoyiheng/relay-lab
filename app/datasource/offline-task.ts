@@ -278,3 +278,43 @@ export async function resumeOfflineTaskPolls(tasks: TaskRow[]) {
     void pollLoop(t.id, t.api_format, t.kind, apiKey, pollUrl, t.created_at)
   }
 }
+
+// 离线单次手动查询：查一次 /api/proxy/poll 并落库。
+export async function syncOfflineTask(id: number): Promise<TaskRow> {
+  const task = await idb.get<OfflineTaskRecord>('tasks', id)
+  if (!task || task.deleted_at) throw new Error('任务不存在')
+  if (!task.remote_task_id) throw new Error('该任务缺少远程任务 ID，无法查询')
+  const provider = task.provider_id ? await idb.get<Provider>('providers', task.provider_id) : null
+  if (!provider) throw new Error('任务关联的平台已删除')
+  const model = task.model_id ? await idb.get<Model>('models', task.model_id) : null
+  const apiKey = (model && resolveModelKeyClient(provider, model)) || provider.api_key
+  const pollUrl = (task.response_payload as any)?.poll_url
+  if (!pollUrl) throw new Error('任务缺少轮询地址')
+
+  let outcome: any
+  try {
+    outcome = await $fetch('/api/proxy/poll', { method: 'POST', body: { format: task.api_format, apiKey, pollUrl } })
+  } catch (err: any) {
+    throw new Error(err?.data?.statusMessage || err?.message || '轮询请求失败')
+  }
+
+  if (outcome.kind === 'done') {
+    await finishTask(id, task.kind, {
+      ...outcome.result,
+      response_payload: { poll_url: pollUrl, polls: [outcome.poll] },
+    }, task.created_at)
+  } else if (outcome.kind === 'error') {
+    await finishTask(id, task.kind, { ...outcome.result }, task.created_at)
+  } else if (outcome.kind === 'continue') {
+    const existing = (task.response_payload as any) || {}
+    const polls = Array.isArray(existing.polls) ? existing.polls : []
+    polls.push(outcome.poll)
+    await patchTask(id, {
+      response_payload: { ...existing, poll_url: pollUrl, polls },
+    })
+  }
+
+  const updated = await idb.get<OfflineTaskRecord>('tasks', id)
+  return hydrateOfflineTask(updated!)
+}
+

@@ -18,6 +18,7 @@ const displayPrompt = computed(() => {
 
 // Fullscreen via shared global viewer (overview reference assets are clickable)
 const { open: openFullscreen } = useFullscreenViewer()
+const { isSyncing, syncTask } = useTaskSync()
 
 // Seedance 成本（仅 doubao-video 成功任务）。
 const cost = computed(() => computeTaskCost(props.task))
@@ -322,9 +323,26 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
           <div v-if="task.remote_task_id && !preview" class="kv">
             <span class="kv-key">远程任务 ID</span>
             <span class="kv-val flex-1">{{ task.remote_task_id }}</span>
-            <button type="button" class="pill-btn" :class="copiedKey === 'remote' ? 'pill-btn-active' : ''" title="复制" @click="copyText(task.remote_task_id, 'remote')">
-              <UIcon :name="copiedKey === 'remote' ? 'i-carbon-checkmark' : 'i-carbon-copy'" class="h-3.5 w-3.5" /> {{ copiedKey === 'remote' ? '已复制' : '复制' }}
-            </button>
+            <div class="flex items-center gap-1">
+              <button
+                v-if="task.kind === 'video'"
+                type="button"
+                class="pill-btn"
+                :disabled="isSyncing(task.id)"
+                title="向平台主动查询一次任务状态"
+                @click="syncTask(task)"
+              >
+                <UIcon
+                  :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+                  class="h-3.5 w-3.5"
+                  :class="{ 'animate-spin': isSyncing(task.id) }"
+                />
+                {{ isSyncing(task.id) ? '正在查询…' : '手动查询' }}
+              </button>
+              <button type="button" class="pill-btn" :class="copiedKey === 'remote' ? 'pill-btn-active' : ''" title="复制" @click="copyText(task.remote_task_id, 'remote')">
+                <UIcon :name="copiedKey === 'remote' ? 'i-carbon-checkmark' : 'i-carbon-copy'" class="h-3.5 w-3.5" /> {{ copiedKey === 'remote' ? '已复制' : '复制' }}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -520,7 +538,24 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
       </section>
 
       <section v-if="!preview && task.error_message">
-        <div class="label-uppercase mb-2">错误</div>
+        <div class="mb-2 flex items-center justify-between">
+          <div class="label-uppercase">错误</div>
+          <button
+            v-if="task.kind === 'video' && task.remote_task_id"
+            type="button"
+            class="pill-btn"
+            :disabled="isSyncing(task.id)"
+            title="向平台主动查询一次任务状态"
+            @click="syncTask(task)"
+          >
+            <UIcon
+              :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+              class="h-3.5 w-3.5"
+              :class="{ 'animate-spin': isSyncing(task.id) }"
+            />
+            {{ isSyncing(task.id) ? '正在查询…' : '手动查询' }}
+          </button>
+        </div>
         <div class="rounded-[4px] border border-red-200 bg-red-50 px-3 py-2 font-mono text-[12px] text-red-700 whitespace-pre-wrap break-all">{{ task.error_message }}</div>
       </section>
     </div>

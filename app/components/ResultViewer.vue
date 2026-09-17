@@ -12,6 +12,7 @@ const resultUrls = computed<string[]>(() => taskResultUrls(props.task))
 
 // Fullscreen via shared global viewer (overlay + Esc handled globally)
 const { open: openFullscreen } = useFullscreenViewer()
+const { isSyncing, syncTask } = useTaskSync()
 
 // Drag a generated result into the creation area's reference uploader.
 function onAssetDragStart(ev: DragEvent, url: string) {
@@ -118,6 +119,21 @@ function onVideoFullscreen(url: string) {
           <UIcon name="i-carbon-warning-alt" class="h-10 w-10 text-red-500" />
           <div class="text-[16px] font-medium text-[var(--c-fg)]">请求失败</div>
           <div class="break-all text-[13px] text-[var(--c-fg-4)]">{{ task.error_message || '未知错误' }}</div>
+          <button
+            v-if="task.kind === 'video' && task.remote_task_id"
+            type="button"
+            class="pill-btn mt-1 inline-flex items-center gap-1.5 px-3 py-1.5"
+            :disabled="isSyncing(task.id)"
+            title="向平台主动查询一次任务状态"
+            @click="syncTask(task)"
+          >
+            <UIcon
+              :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+              class="h-4 w-4"
+              :class="{ 'animate-spin': isSyncing(task.id) }"
+            />
+            {{ isSyncing(task.id) ? '正在查询…' : '手动查询' }}
+          </button>
         </div>
       </template>
       <template v-else-if="task.status === 'running' || task.status === 'pending'">
