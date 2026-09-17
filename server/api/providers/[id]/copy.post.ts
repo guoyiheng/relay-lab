@@ -43,47 +43,75 @@ export default defineEventHandler(async (event) => {
 
   const now = Date.now()
   const d1 = db.d1
-  // 一个原子事务：先插平台，再插全部模型（provider_id 用子查询取新平台 id）。
-  const stmts: D1PreparedStatement[] = [
-    d1
-      .prepare(
-        `INSERT INTO providers (user_id, name, base_url, api_key, api_format, enabled, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+
+  // 1. 插入新平台（包含全量配置：AK/SK、Region、Project Name、素材组缓存等全部字段）
+  const insertProviderResult = await db
+    .prepare(
+      `INSERT INTO providers (
+         user_id, name, base_url, api_key, api_format, enabled, notes,
+         ark_access_key, ark_secret_key, ark_region, ark_project_name, ark_asset_group_id,
+         created_at, updated_at
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      userId,
+      name,
+      src.base_url,
+      src.api_key,
+      src.api_format,
+      src.enabled ? 1 : 0,
+      src.notes ?? null,
+      src.ark_access_key ?? null,
+      src.ark_secret_key ?? null,
+      src.ark_region ?? null,
+      src.ark_project_name ?? null,
+      src.ark_asset_group_id ?? null,
+      now,
+      now,
+    )
+  const newProviderId = Number(insertProviderResult.lastInsertRowid)
+
+  // 2. 批量插入模型（绑定至新平台 id，保持各模型配置一致；polish_model 是全局唯一开关，置 0 避免冲突）
+  if (models.length) {
+    try {
+      const stmts: D1PreparedStatement[] = models.map((m) =>
+        d1
+          .prepare(
+            `INSERT INTO models (
+               user_id, provider_id, model_id, display_name, kind, default_params, enabled,
+               price_mode, price_cny, price_in_cny, price_out_cny, price_novideo_cny, price_video_cny,
+               polish_model, keys, created_at, updated_at
+             )
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            userId,
+            newProviderId,
+            m.model_id,
+            m.display_name,
+            m.kind,
+            m.default_params,
+            m.enabled ? 1 : 0,
+            m.price_mode,
+            m.price_cny,
+            m.price_in_cny,
+            m.price_out_cny,
+            m.price_novideo_cny,
+            m.price_video_cny,
+            0, // polish_model 全局唯一，复制品置 0
+            m.keys,
+            now,
+            now,
+          ),
       )
-      .bind(userId, name, src.base_url, src.api_key, src.api_format, src.enabled, src.notes, now, now),
-    ...models.map((m) =>
-      d1
-        .prepare(
-          `INSERT INTO models (user_id, provider_id, model_id, display_name, kind, default_params, enabled, price_mode, price_cny, price_in_cny, price_out_cny, price_novideo_cny, price_video_cny, polish_model, keys, created_at, updated_at)
-           VALUES (?, (SELECT id FROM providers WHERE user_id = ? AND name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-          userId, userId, name,
-          m.model_id,
-          m.display_name,
-          m.kind,
-          m.default_params,
-          m.enabled,
-          m.price_mode,
-          m.price_cny,
-          m.price_in_cny,
-          m.price_out_cny,
-          m.price_novideo_cny,
-          m.price_video_cny,
-          0, // polish_model 全局唯一，复制品置 0
-          m.keys,
-          now,
-          now,
-        ),
-    ),
-  ]
+      await db.batch(stmts)
+    } catch (err) {
+      await db.prepare('DELETE FROM providers WHERE id = ? AND user_id = ?').run(newProviderId, userId)
+      throw err
+    }
+  }
 
-  // waitUntil 兜底：客户端刷新/断开也让这批 batch 跑完（生产由 event.context 提供）。
-  const waitUntil = (event.context as any).waitUntil as ((p: Promise<unknown>) => void) | undefined
-  const batchPromise = db.batch(stmts)
-  if (waitUntil) waitUntil(batchPromise)
-  await batchPromise
-
-  const row = await db.prepare('SELECT * FROM providers WHERE user_id = ? AND name = ?').get(userId, name) as ProviderRecord
+  const row = await db.prepare('SELECT * FROM providers WHERE id = ? AND user_id = ?').get(newProviderId, userId) as ProviderRecord
   return { provider: serializeProvider(row), models: models.length }
 })
