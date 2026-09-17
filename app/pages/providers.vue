@@ -835,9 +835,6 @@ async function importConfig() {
           <div v-if="providerForm.url_mode === 'base' && providerForm.api_format === 'doubao-video'"
             class="space-y-3 rounded-[6px] border border-[var(--c-border)] bg-[var(--c-surface)] p-3">
             <div class="text-[13px] font-medium text-[var(--c-fg-2)]">素材库（选填）</div>
-            <div class="text-[12px] leading-relaxed text-[var(--c-fg-4)]">
-              配置后创作时可勾选「参考走素材库」，参考素材先入库再引用，避免被拦截。
-            </div>
             <div>
               <div class="field-label">Access Key</div>
               <UInput v-model="providerForm.ark_access_key" placeholder="AKLT..." class="font-mono" />

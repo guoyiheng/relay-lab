@@ -16,9 +16,13 @@ const DEFAULT_PROJECT = 'default'
 const GROUP_TYPE = 'AIGC'
 const GROUP_NAME = 'relay-lab'
 
-// 控制面 host：ark.<region>.byteplusapi.com（海外）。
-function arkHost(region: string): string {
-  return `ark.${region}.byteplusapi.com`
+// 控制面 host：国内火山 ark.<region>.volcengineapi.com / 海外 BytePlus ark.<region>.byteplusapi.com。
+function arkHost(region: string, baseUrl?: string): string {
+  const clean = region.trim().toLowerCase()
+  if (clean.includes('.')) return clean
+  const isVolc = clean.startsWith('cn-') || (baseUrl && (baseUrl.includes('volces.com') || baseUrl.includes('volcengine')))
+  const domain = isVolc ? 'volcengineapi.com' : 'byteplusapi.com'
+  return `ark.${clean}.${domain}`
 }
 
 // kind → BytePlus AssetType
@@ -62,6 +66,7 @@ interface ArkCreds {
   ak: string
   sk: string
   region: string
+  host: string
   projectName: string
 }
 
@@ -69,10 +74,16 @@ function resolveCreds(provider: ProviderRecord): ArkCreds | null {
   const ak = (provider.ark_access_key || '').trim()
   const sk = (provider.ark_secret_key || '').trim()
   if (!ak || !sk) return null
+  const isVolc = (provider.base_url || '').includes('volces.com') || (provider.base_url || '').includes('volcengine')
+  const defaultRegion = isVolc ? 'cn-beijing' : DEFAULT_REGION
+  const rawRegion = (provider.ark_region || '').trim() || defaultRegion
+  const host = arkHost(rawRegion, provider.base_url)
+  const region = rawRegion.includes('.') ? (rawRegion.split('.')[1] || defaultRegion) : rawRegion
   return {
     ak,
     sk,
-    region: (provider.ark_region || '').trim() || DEFAULT_REGION,
+    region,
+    host,
     projectName: (provider.ark_project_name || '').trim() || DEFAULT_PROJECT,
   }
 }
@@ -86,7 +97,7 @@ async function arkRequest(
   action: string,
   bodyObj: Record<string, unknown>,
 ): Promise<any> {
-  const host = arkHost(creds.region)
+  const host = creds.host || arkHost(creds.region)
   const bodyStr = JSON.stringify(bodyObj)
   const contentSha = await sha256Hex(bodyStr)
 
@@ -137,7 +148,16 @@ async function arkRequest(
     const text = await res.text()
     let json: any = null
     try { json = text ? JSON.parse(text) : null } catch { json = { raw: text } }
+    if (!res.ok && !json?.ResponseMetadata?.Error) {
+      throw new Error(`素材库请求 HTTP ${res.status}: ${typeof json === 'object' ? JSON.stringify(json) : text || res.statusText}`)
+    }
     return json
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`素材库请求超时 (${CONTROL_TIMEOUT_MS / 1000}s) [${host}]`)
+    }
+    if (err?.message?.startsWith('素材库')) throw err
+    throw new Error(`素材库网络请求失败 [${host}]: ${err?.message || err}`)
   } finally {
     clearTimeout(timer)
   }
@@ -156,7 +176,6 @@ function arkError(resp: any): { code: string; message: string } | null {
 async function createAssetGroup(creds: ArkCreds, name: string): Promise<string> {
   const resp = await arkRequest(creds, 'CreateAssetGroup', {
     Name: name,
-    Description: 'Relay Lab 自动创建',
     GroupType: GROUP_TYPE,
     ProjectName: creds.projectName,
   })
