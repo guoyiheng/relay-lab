@@ -1120,19 +1120,19 @@ function toggleRail() {
         <!-- 结果操作区: 手动查询(视频) → 复刻参数 → 下载 → 删除 (全屏在预览区，不重复) -->
         <div class="flex items-center gap-1.5">
           <button
-            v-if="activeTask.kind === 'video' && activeTask.remote_task_id"
+            v-if="activeTask.kind === 'video' && activeTask.status !== 'succeeded'"
             type="button"
             class="pill-btn"
-            :disabled="isSyncing(activeTask.id)"
-            title="向平台主动查询一次任务状态"
+            :disabled="!activeTask.remote_task_id || isSyncing(activeTask.id)"
+            :title="activeTask.remote_task_id ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
             @click="syncTask(activeTask)"
           >
             <UIcon
-              :name="isSyncing(activeTask.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+              :name="isSyncing(activeTask.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
               class="h-3.5 w-3.5"
               :class="{ 'animate-spin': isSyncing(activeTask.id) }"
             />
-            {{ isSyncing(activeTask.id) ? '正在查询…' : '手动查询' }}
+            {{ isSyncing(activeTask.id) ? '正在拉取…' : '手动拉取视频' }}
           </button>
           <button type="button" class="pill-btn" title="把本次任务的平台/模型/参数/提示词/参考素材回填到创作区，便于改一改重跑"
             @click="retryTask(activeTask)">

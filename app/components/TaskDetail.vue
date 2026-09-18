@@ -393,24 +393,23 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
           <div class="kv"><span class="kv-key">模型</span><span class="kv-val">{{ task.model_name }}</span></div>
           <div class="kv"><span class="kv-key">类型</span><span class="kv-val">{{ kindLabel(task.kind) }}</span></div>
           <div class="kv"><span class="kv-key">协议</span><span class="kv-val">{{ formatLabel }}</span></div>
-          <div v-if="task.remote_task_id && !preview" class="kv">
+          <div v-if="!preview && task.kind === 'video' && task.status !== 'succeeded'" class="kv">
             <span class="kv-key">远程任务 ID</span>
-            <span class="kv-val flex-1">{{ task.remote_task_id }}</span>
+            <span class="kv-val flex-1">{{ task.remote_task_id || '尚未生成' }}</span>
             <div class="flex items-center gap-1">
               <button
-                v-if="task.kind === 'video'"
                 type="button"
                 class="pill-btn"
-                :disabled="isSyncing(task.id)"
-                title="向平台主动查询一次任务状态"
+                :disabled="!task.remote_task_id || isSyncing(task.id)"
+                :title="task.remote_task_id ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
                 @click="syncTask(task)"
               >
                 <UIcon
-                  :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+                  :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
                   class="h-3.5 w-3.5"
                   :class="{ 'animate-spin': isSyncing(task.id) }"
                 />
-                {{ isSyncing(task.id) ? '正在查询…' : '手动查询' }}
+                {{ isSyncing(task.id) ? '正在拉取…' : '手动拉取视频' }}
               </button>
               <button type="button" class="pill-btn" :class="copiedKey === 'remote' ? 'pill-btn-active' : ''" title="复制" @click="copyText(task.remote_task_id, 'remote')">
                 <UIcon :name="copiedKey === 'remote' ? 'i-carbon-checkmark' : 'i-carbon-copy'" class="h-3.5 w-3.5" /> {{ copiedKey === 'remote' ? '已复制' : '复制' }}
@@ -703,19 +702,19 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
         <div class="mb-2 flex items-center justify-between">
           <div class="label-uppercase">错误</div>
           <button
-            v-if="task.kind === 'video' && task.remote_task_id"
+            v-if="task.kind === 'video' && task.status !== 'succeeded'"
             type="button"
             class="pill-btn"
-            :disabled="isSyncing(task.id)"
-            title="向平台主动查询一次任务状态"
+            :disabled="!task.remote_task_id || isSyncing(task.id)"
+            :title="task.remote_task_id ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
             @click="syncTask(task)"
           >
             <UIcon
-              :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+              :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
               class="h-3.5 w-3.5"
               :class="{ 'animate-spin': isSyncing(task.id) }"
             />
-            {{ isSyncing(task.id) ? '正在查询…' : '手动查询' }}
+            {{ isSyncing(task.id) ? '正在拉取…' : '手动拉取视频' }}
           </button>
         </div>
         <div class="rounded-[4px] border border-red-200 bg-red-50 px-3 py-2 font-mono text-[12px] text-red-700 whitespace-pre-wrap break-all">{{ task.error_message }}</div>

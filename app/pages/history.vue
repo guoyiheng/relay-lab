@@ -581,19 +581,19 @@ function scoreColor(s: number): string {
             </span>
             <span v-if="detailTask.http_status" class="font-mono">HTTP {{ detailTask.http_status }}</span>
             <button
-              v-if="detailTask.kind === 'video' && detailTask.remote_task_id"
+              v-if="detailTask.kind === 'video' && detailTask.status !== 'succeeded'"
               type="button"
               class="pill-btn"
-              :disabled="isSyncing(detailTask.id)"
-              title="向平台主动查询一次任务状态"
+              :disabled="!detailTask.remote_task_id || isSyncing(detailTask.id)"
+              :title="detailTask.remote_task_id ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
               @click="syncDetail(detailTask)"
             >
               <UIcon
-                :name="isSyncing(detailTask.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
+                :name="isSyncing(detailTask.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
                 class="h-3.5 w-3.5"
                 :class="{ 'animate-spin': isSyncing(detailTask.id) }"
               />
-              {{ isSyncing(detailTask.id) ? '正在查询…' : '手动查询' }}
+              {{ isSyncing(detailTask.id) ? '正在拉取…' : '手动拉取视频' }}
             </button>
             <UButton size="xs" variant="ghost" color="neutral" icon="i-carbon-close"
               aria-label="关闭任务详情" title="关闭任务详情" @click="closeDetail" />

@@ -14,6 +14,9 @@ const resultUrls = computed<string[]>(() => taskResultUrls(props.task))
 const { open: openFullscreen } = useFullscreenViewer()
 const { isSyncing, syncTask } = useTaskSync()
 
+const needsVideoFetch = computed(() => props.task?.kind === 'video' && props.task.status !== 'succeeded')
+const canFetchVideo = computed(() => needsVideoFetch.value && !!props.task?.remote_task_id)
+
 // Drag a generated result into the creation area's reference uploader.
 function onAssetDragStart(ev: DragEvent, url: string) {
   if (!props.task || !ev.dataTransfer) return
@@ -44,7 +47,7 @@ function onVideoFullscreen(url: string) {
 
 <template>
   <div v-if="task" class="flex h-full min-h-0 flex-col">
-    <div class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[var(--c-surface-2)] p-5">
+    <div class="relative flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[var(--c-surface-2)] p-5">
       <template v-if="task.assets_cleaned_at && task.kind !== 'text'">
         <div class="flex max-w-xl flex-col items-center gap-3 text-center">
           <UIcon name="i-carbon-clean" class="h-10 w-10 text-[var(--c-fg-6)]" />
@@ -152,21 +155,6 @@ function onVideoFullscreen(url: string) {
           <UIcon name="i-carbon-warning-alt" class="h-10 w-10 text-red-500" />
           <div class="text-[16px] font-medium text-[var(--c-fg)]">请求失败</div>
           <div class="break-all text-[13px] text-[var(--c-fg-4)]">{{ task.error_message || '未知错误' }}</div>
-          <button
-            v-if="task.kind === 'video' && task.remote_task_id"
-            type="button"
-            class="pill-btn mt-1 inline-flex items-center gap-1.5 px-3 py-1.5"
-            :disabled="isSyncing(task.id)"
-            title="向平台主动查询一次任务状态"
-            @click="syncTask(task)"
-          >
-            <UIcon
-              :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-renew'"
-              class="h-4 w-4"
-              :class="{ 'animate-spin': isSyncing(task.id) }"
-            />
-            {{ isSyncing(task.id) ? '正在查询…' : '手动查询' }}
-          </button>
         </div>
       </template>
       <template v-else-if="task.status === 'running' || task.status === 'pending'">
@@ -178,6 +166,25 @@ function onVideoFullscreen(url: string) {
       <template v-else>
         <div class="text-[13px] text-[var(--c-fg-4)]">无结果</div>
       </template>
+
+      <!-- 视频只要尚未成功，就始终保留主动拉取入口；没有远程 ID 时保留按钮但置灰，
+           避免后台提交尚未落库或已丢失时用户误以为可以查询。 -->
+      <div v-if="needsVideoFetch" class="absolute bottom-5 left-0 right-0 flex justify-center px-5">
+        <button
+          type="button"
+          class="pill-btn inline-flex items-center gap-1.5 px-3 py-1.5"
+          :disabled="!canFetchVideo || isSyncing(task.id)"
+          :title="canFetchVideo ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
+          @click="syncTask(task)"
+        >
+          <UIcon
+            :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
+            class="h-4 w-4"
+            :class="{ 'animate-spin': isSyncing(task.id) }"
+          />
+          {{ isSyncing(task.id) ? '正在拉取…' : '手动拉取视频' }}
+        </button>
+      </div>
     </div>
   </div>
 
