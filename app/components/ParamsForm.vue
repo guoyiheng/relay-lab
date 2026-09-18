@@ -267,8 +267,7 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
               : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
             @click="patch({ duration: d })"
           >{{ d }}s</button>
-          <label class="inline-flex items-center gap-1.5 text-[12px] text-[var(--c-fg-3)]">
-            <span>自定义</span>
+          <label class="inline-flex items-center">
             <UInput
               :model-value="durationDraft"
               type="number"
@@ -276,12 +275,11 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
               max="30"
               step="1"
               size="sm"
-              class="w-20"
+              class="w-[4.5rem]"
               @update:model-value="(v: string) => { durationDraft = v }"
               @change="commitDuration"
               @keydown.enter="commitDuration"
             />
-            <span>秒</span>
           </label>
         </div>
       </div>
