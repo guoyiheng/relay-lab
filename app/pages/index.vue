@@ -224,8 +224,8 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
   if (apiFormat.value === 'seed-audio' || kind.value === 'audio') {
     const base = { ...p }
     const audio_config: Record<string, unknown> = {
-      format: String(base.format || 'mp3'),
-      sample_rate: Number(base.sample_rate || 48000),
+      format: String(base.format || 'wav'),
+      sample_rate: Number(base.sample_rate || (String(base.format || 'wav') === 'mp3' ? 44100 : String(base.format || 'wav') === 'ogg_opus' ? 48000 : 40000)),
       speech_rate: Number(base.speech_rate ?? 0),
       pitch_rate: Number(base.pitch_rate ?? 0),
       loudness_rate: Number(base.loudness_rate ?? 0),

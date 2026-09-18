@@ -87,11 +87,18 @@ const isVideoOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props
 const isText = computed(() => props.kind === 'text')
 const isAudio = computed(() => props.kind === 'audio' || props.apiFormat === 'seed-audio')
 
-const AUDIO_FORMATS = ['mp3', 'wav', 'pcm', 'ogg_opus'] as const
-const AUDIO_SAMPLE_RATES = [16000, 24000, 32000, 44100, 48000] as const
+const AUDIO_FORMATS = ['wav', 'mp3', 'pcm', 'ogg_opus'] as const
+const AUDIO_SAMPLE_RATES_BY_FORMAT = {
+  wav: [8000, 16000, 24000, 32000, 40000, 44100, 48000],
+  pcm: [8000, 16000, 24000, 32000, 40000, 44100, 48000],
+  mp3: [8000, 16000, 24000, 32000, 44100, 48000],
+  ogg_opus: [48000],
+} as const
 
-const audioFormat = computed(() => String(props.modelValue.format ?? 'mp3'))
-const sampleRate = computed(() => Number(props.modelValue.sample_rate ?? 48000))
+const audioFormat = computed(() => String(props.modelValue.format ?? 'wav') as keyof typeof AUDIO_SAMPLE_RATES_BY_FORMAT)
+const audioSampleRates = computed(() => AUDIO_SAMPLE_RATES_BY_FORMAT[audioFormat.value] || AUDIO_SAMPLE_RATES_BY_FORMAT.wav)
+const defaultAudioSampleRate = computed(() => audioFormat.value === 'mp3' ? 44100 : audioFormat.value === 'ogg_opus' ? 48000 : 40000)
+const sampleRate = computed(() => Number(props.modelValue.sample_rate ?? defaultAudioSampleRate.value))
 const speechRate = computed(() => Number(props.modelValue.speech_rate ?? 0))
 const pitchRate = computed(() => Number(props.modelValue.pitch_rate ?? 0))
 const loudnessRate = computed(() => Number(props.modelValue.loudness_rate ?? 0))
@@ -441,7 +448,7 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
             :class="audioFormat === fmt
               ? 'border-primary-500 bg-primary-50 text-primary-700'
               : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
-            @click="patch({ format: fmt })"
+            @click="patch({ format: fmt, sample_rate: fmt === 'mp3' ? 44100 : fmt === 'ogg_opus' ? 48000 : 40000 })"
           >{{ fmt }}</button>
         </div>
       </div>
@@ -450,14 +457,14 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
         <div class="field-label">采样率 (Hz)</div>
         <div class="flex flex-wrap gap-1.5">
           <button
-            v-for="rate in AUDIO_SAMPLE_RATES"
+            v-for="rate in audioSampleRates"
             :key="rate"
             type="button"
             class="rounded-[4px] border px-2.5 py-1 text-[12px] font-mono transition"
             :class="sampleRate === rate
               ? 'border-primary-500 bg-primary-50 text-primary-700'
               : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
-            @click="patch({ sample_rate: rate })"
+            @click="patch({ format: audioFormat, sample_rate: rate })"
           >{{ rate }}</button>
         </div>
       </div>

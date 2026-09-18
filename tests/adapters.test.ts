@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildRequestPayload, type AdapterContext } from '../server/utils/adapters'
 
 describe('buildRequestPayload for doubao-video image (Seedream)', () => {
@@ -109,8 +109,8 @@ describe('buildRequestPayload for seed-audio', () => {
     expect(payload.model).toBe('seed-audio-1.0')
     expect(payload.text_prompt).toBe('Hello world speech')
     expect(payload.audio_config).toEqual({
-      format: 'mp3',
-      sample_rate: 48000,
+      format: 'wav',
+      sample_rate: 40000,
       pitch_rate: 0,
       speech_rate: 0,
       loudness_rate: 0,
@@ -148,6 +148,30 @@ describe('buildRequestPayload for seed-audio', () => {
     expect(payload.references).toEqual([
       { image_url: 'https://example.com/ref.jpg' },
     ])
+  })
+
+  it('normalizes format-specific sample rates', () => {
+    const payload = buildRequestPayload('seed-audio', {
+      ...baseCtx,
+      params: { format: 'ogg_opus', sample_rate: 40000 },
+    })
+    expect(payload.audio_config).toMatchObject({ format: 'ogg_opus', sample_rate: 48000 })
+  })
+
+  it('keeps base64 audio responses as playable data URLs', async () => {
+    const { runPreparedSyncTask } = await import('../server/utils/adapters')
+    const fetchSpy = vi.fn().mockResolvedValueOnce({ code: 0, audio: 'QUJD' })
+    vi.stubGlobal('$fetch', fetchSpy)
+    const result = await runPreparedSyncTask({
+      format: 'seed-audio',
+      baseUrl: 'https://openspeech.bytedance.com/api/v3',
+      apiKey: 'test-key',
+      kind: 'audio',
+      payload: { model: 'seed-audio-1.0', text_prompt: 'hello', audio_config: { format: 'wav', sample_rate: 40000 } },
+    })
+    expect(result.status).toBe('succeeded')
+    expect(result.result_urls).toEqual(['data:audio/wav;base64,QUJD'])
+    vi.unstubAllGlobals()
   })
 })
 

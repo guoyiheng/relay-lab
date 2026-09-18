@@ -668,9 +668,19 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
   }
   if (format === 'seed-audio' || ctx.kind === 'audio') {
     const cleanParams = { ...ctx.params }
+    const audioFormat = ['wav', 'mp3', 'pcm', 'ogg_opus'].includes(String(cleanParams.format))
+      ? String(cleanParams.format)
+      : 'wav'
+    const defaultSampleRate = audioFormat === 'mp3' ? 44100 : audioFormat === 'ogg_opus' ? 48000 : 40000
+    const validSampleRates = audioFormat === 'ogg_opus'
+      ? [48000]
+      : audioFormat === 'mp3'
+        ? [8000, 16000, 24000, 32000, 44100, 48000]
+        : [8000, 16000, 24000, 32000, 40000, 44100, 48000]
+    const requestedSampleRate = Number(cleanParams.sample_rate)
     const audio_config: Record<string, unknown> = {
-      format: String(cleanParams.format || 'mp3'),
-      sample_rate: Number(cleanParams.sample_rate || 48000),
+      format: audioFormat,
+      sample_rate: validSampleRates.includes(requestedSampleRate) ? requestedSampleRate : defaultSampleRate,
       speech_rate: Number(cleanParams.speech_rate ?? 0),
       pitch_rate: Number(cleanParams.pitch_rate ?? 0),
       loudness_rate: Number(cleanParams.loudness_rate ?? 0),
@@ -894,7 +904,11 @@ export async function runPreparedSyncTask(ctx: {
           error_message: resp?.message || `Seed Audio 错误码: ${resp.code}`,
         }
       }
-      const urls = resp?.url ? [resp.url] : pickUrlsFromObject(resp)
+      const audioFormat = String((ctx.payload.audio_config as Record<string, unknown> | undefined)?.format || 'wav')
+      const audioDataUrl = typeof resp?.audio === 'string' && resp.audio.length
+        ? `data:audio/${audioFormat === 'ogg_opus' ? 'ogg' : audioFormat};base64,${resp.audio}`
+        : null
+      const urls = resp?.url ? [resp.url] : audioDataUrl ? [audioDataUrl] : pickUrlsFromObject(resp)
       return {
         status: urls.length ? 'succeeded' : 'failed',
         request_payload: ctx.payload,
