@@ -148,6 +148,10 @@ watch(() => route.path, (newPath, oldPath) => {
                 <UIcon name="i-carbon-user" class="h-4 w-4 text-[var(--c-fg-4)]" />
                 个人中心
               </button>
+              <div v-if="versionId" class="mx-3 my-1 flex items-center gap-2 border-t border-[var(--c-border-2)] pt-2 text-[11px] text-[var(--c-fg-6)]">
+                <UIcon name="i-carbon-version" class="h-3.5 w-3.5" />
+                <span>版本 {{ versionId }}</span>
+              </div>
               <button type="button"
                 class="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[14px] text-[var(--c-fg-2)] transition hover:bg-[var(--c-surface-2)]"
                 @click="onLogout">
@@ -162,13 +166,6 @@ watch(() => route.path, (newPath, oldPath) => {
     <main class="h-full min-h-0 w-full flex-1 overflow-hidden px-4 pb-4 pt-3">
       <slot />
     </main>
-    <footer
-      class="flex h-8 shrink-0 items-center justify-center gap-4 border-t border-[var(--c-border)] bg-[var(--c-surface)] text-[12px] text-[var(--c-fg-4)]">
-      <span>&copy; 2026 yiheng</span>
-      <span v-if="versionId" class="font-mono text-[11px] text-[var(--c-fg-7)]" title="Cloudflare Workers 版本">{{
-        versionId
-        }}</span>
-    </footer>
     <!-- Global fullscreen media overlay (driven by useFullscreenViewer) -->
     <FullscreenViewer />
   </div>
