@@ -18,7 +18,7 @@ const MAX_BYTES: Record<AssetKind, number> = {
 const ALLOWED_EXT: Record<AssetKind, string[]> = {
   image: ['.png', '.jpg', '.jpeg', '.webp', '.gif'],
   video: ['.mp4', '.mov', '.webm'],
-  audio: ['.mp3', '.wav', '.m4a', '.aac', '.ogg'],
+  audio: ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.webm'],
 }
 
 function extOf(filename: string | undefined): string {

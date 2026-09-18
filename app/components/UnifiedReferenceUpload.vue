@@ -182,7 +182,7 @@ function remove(item: UploadItem) {
   })
 }
 
-function setTrimSelection(item: UploadItem, selection: { start: number; end: number } | null) {
+function setTrimSelection(item: UploadItem, selection: { start: number; end: number } | null, clippedFile?: File) {
   const next = {
     image: [...props.modelValue.image],
     video: [...props.modelValue.video],
@@ -191,6 +191,15 @@ function setTrimSelection(item: UploadItem, selection: { start: number; end: num
   const list = next[item.kind]
   const found = list.find((candidate) => isSameRef(candidate, item))
   if (found) {
+    if (clippedFile) {
+      if (found.pending && found.public_url.startsWith('blob:')) URL.revokeObjectURL(found.public_url)
+      found.id = ''
+      found.file = clippedFile
+      found.pending = true
+      found.filename = clippedFile.name
+      found.public_url = URL.createObjectURL(clippedFile)
+      found.sig = `file:${clippedFile.name}|${clippedFile.size}|${clippedFile.lastModified}`
+    }
     found.trimStartSeconds = selection?.start ?? null
     found.trimEndSeconds = selection?.end ?? null
     // 保留旧字段，避免历史状态和下游调用失去兼容。
@@ -204,7 +213,8 @@ function preview(item: UploadItem) {
     trimSeconds: item.kind === 'image' ? null : item.trimSeconds,
     trimStartSeconds: item.kind === 'image' ? null : item.trimStartSeconds,
     trimEndSeconds: item.kind === 'image' ? null : (item.trimEndSeconds ?? item.trimSeconds),
-    onTrim: item.kind === 'image' ? undefined : (selection) => setTrimSelection(item, selection),
+    filename: item.filename,
+    onTrim: item.kind === 'image' ? undefined : (selection, clippedFile) => setTrimSelection(item, selection, clippedFile),
   })
 }
 

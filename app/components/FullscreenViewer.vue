@@ -7,6 +7,56 @@ const trimStart = ref(0)
 const trimEnd = ref(0)
 const currentTime = ref(0)
 const playing = ref(false)
+const processing = ref(false)
+
+async function clipMedia() {
+  if (!mediaEl.value || !mediaDuration.value || trimEnd.value <= trimStart.value) return
+  processing.value = true
+  try {
+    const source = mediaEl.value
+    const candidates = state.kind === 'video'
+      ? ['video/webm;codecs=vp8,opus', 'video/webm']
+      : ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+    const mime = candidates.find((type) => window.MediaRecorder?.isTypeSupported(type))
+    if (!window.MediaRecorder || !mime) throw new Error('当前浏览器不支持媒体截取，请使用最新版 Chrome 或 Edge')
+    const stream = (source as HTMLMediaElement & { captureStream?: () => MediaStream }).captureStream?.()
+    if (!stream) throw new Error('当前浏览器不支持媒体截取')
+    const recorder = new MediaRecorder(stream, { mimeType: mime })
+    const chunks: Blob[] = []
+    recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
+    const done = new Promise<Blob>((resolve, reject) => {
+      recorder.onerror = () => reject(new Error('媒体截取失败'))
+      recorder.onstop = () => resolve(new Blob(chunks, { type: mime }))
+    })
+    source.currentTime = trimStart.value
+    await source.play()
+    recorder.start(100)
+    await new Promise<void>((resolve) => {
+      const tick = () => source.currentTime >= trimEnd.value ? resolve() : requestAnimationFrame(tick)
+      requestAnimationFrame(tick)
+    })
+    source.pause()
+    recorder.stop()
+    const blob = await done
+    const ext = 'webm'
+    const base = (state.filename || `${state.kind}-reference`).replace(/\.[^.]+$/, '')
+    const file = new File([blob], `${base}-clip.${ext}`, { type: mime })
+    state.onTrim?.({ start: trimStart.value, end: trimEnd.value }, file)
+    state.url = URL.createObjectURL(file)
+    state.filename = file.name
+    state.trimStartSeconds = null
+    state.trimEndSeconds = null
+    state.trimSeconds = null
+    mediaDuration.value = 0
+    trimStart.value = 0
+    trimEnd.value = 0
+    currentTime.value = 0
+  } catch (error) {
+    state.error = error instanceof Error ? error.message : '媒体截取失败'
+  } finally {
+    processing.value = false
+  }
+}
 
 function emitSelection() {
   const full = trimStart.value <= 0 && (!mediaDuration.value || trimEnd.value >= mediaDuration.value - 0.05)
@@ -68,6 +118,8 @@ watch(() => [state.url, state.kind] as const, () => {
   trimEnd.value = state.trimEndSeconds ?? 0
   currentTime.value = trimStart.value
   playing.value = false
+  processing.value = false
+  state.error = null
 })
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close() }
 onMounted(() => window.addEventListener('keydown', onKey))
@@ -85,12 +137,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <img v-if="state.kind === 'image'" :key="state.url" :src="state.url" class="max-h-[92vh] max-w-[92vw] rounded-[6px] object-contain shadow-2xl" @click.stop />
         <div v-else-if="state.kind === 'video'" :key="state.url" class="flex max-w-[92vw] flex-col items-center gap-3" @click.stop>
           <video ref="mediaEl" :src="state.url" class="max-h-[70vh] max-w-[92vw] rounded-[6px] shadow-2xl" controls playsinline @loadedmetadata="onMediaMetadata" @play="onMediaPlay" @pause="onMediaPause" @timeupdate="onMediaTimeUpdate" />
-          <MediaTrimControls :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" />
+          <MediaTrimControls :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" :processing="processing" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" @apply="clipMedia" />
+          <p v-if="state.error" class="max-w-[560px] text-xs text-red-300">{{ state.error }}</p>
         </div>
         <div v-else :key="state.url" class="flex w-[min(90vw,560px)] flex-col items-center gap-5 rounded-[10px] bg-white/5 p-8 shadow-2xl" @click.stop>
           <UIcon name="i-carbon-music" class="h-16 w-16 text-white/70" />
           <audio ref="mediaEl" :src="state.url" controls class="w-full" @loadedmetadata="onMediaMetadata" @play="onMediaPlay" @pause="onMediaPause" @timeupdate="onMediaTimeUpdate" />
-          <MediaTrimControls :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" />
+          <MediaTrimControls :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" :processing="processing" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" @apply="clipMedia" />
+          <p v-if="state.error" class="w-full text-xs text-red-300">{{ state.error }}</p>
         </div>
       </Transition>
     </div>

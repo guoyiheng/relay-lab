@@ -7,12 +7,14 @@ const props = defineProps<{
   end: number
   currentTime: number
   playing: boolean
+  processing: boolean
 }>()
 const emit = defineEmits<{
   start: [value: number]
   end: [value: number]
   reset: []
   play: []
+  apply: []
 }>()
 const startDraft = ref('0')
 const endDraft = ref('0')
@@ -84,10 +86,11 @@ function slide(field: 'start' | 'end', event: Event) {
       <span class="text-xs tabular-nums text-white/70">{{ formatMediaTime(start) }} → {{ formatMediaTime(end) }}</span>
       <div class="flex gap-2">
         <button type="button" class="trim-button border border-white/25 text-white/85 hover:bg-white/10" :disabled="!ready" @click="emit('reset')">重置</button>
-        <button type="button" class="trim-button bg-primary-500 text-white hover:bg-primary-600" :disabled="!ready || !!error" @click="emit('play')">{{ playing ? '暂停播放' : '播放选区' }}</button>
+        <button type="button" class="trim-button border border-white/25 text-white/85 hover:bg-white/10" :disabled="!ready || !!error || processing" @click="emit('play')">{{ playing ? '暂停播放' : '播放选区' }}</button>
+        <button type="button" class="trim-button bg-primary-500 text-white hover:bg-primary-600" :disabled="!ready || !!error || processing || end - start < 0.1" @click="emit('apply')">{{ processing ? '正在生成…' : '截取并替换参考' }}</button>
       </div>
     </div>
-    <p class="mt-3 text-[11px] leading-relaxed text-white/60">可拖动滑块或输入秒数；到结束点自动暂停。仅用于预览，不裁剪原文件或提交素材。</p>
+    <p class="mt-3 text-[11px] leading-relaxed text-white/60">可拖动滑块或输入秒数。点击“截取并替换参考”后，会生成缩短后的新文件并替换当前参考素材。</p>
   </section>
 </template>
 
