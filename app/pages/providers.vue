@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 平台 + 模型管理页：增删改平台与其下模型，含配置导入/导出。
 // 关闭 modal 走脏检查（未保存二次确认）；改动后强刷 providers store 传播到其他页。
-import type { Provider, Model, ApiFormat, PriceMode } from '~~/types/api'
+import type { Provider, Model, ApiFormat, PriceMode, ModelKind } from '~~/types/api'
 import { useProvidersStore } from '~/stores/providers'
 
 interface ProviderWithModels extends Provider {
@@ -75,12 +75,20 @@ const FORMAT_OPTIONS: {
       { label: '视频轮询', suffix: '/contents/generations/tasks/{task_id}' },
     ],
   },
+  {
+    value: 'seed-audio',
+    label: 'Seed Audio · 语音',
+    paths: [
+      { label: '音频合成', suffix: '/api/v3/tts/create' },
+    ],
+  },
 ]
 
 const KIND_OPTIONS = [
   { value: 'image', label: '图像' },
   { value: 'video', label: '视频' },
   { value: 'text', label: '文本' },
+  { value: 'audio', label: '音频' },
 ]
 
 // 正在编辑的模型所属平台的协议（用于判断是否 Seedance）。
@@ -146,7 +154,7 @@ const modelForm = ref<{
   provider_id: number | null
   model_id: string
   display_name: string
-  kind: 'image' | 'video' | 'text'
+  kind: ModelKind
   default_params: string
   enabled: boolean
   price_mode: '' | PriceMode
@@ -950,7 +958,7 @@ async function importConfig() {
                 class="flex-1 rounded-[4px] border px-3 py-2 text-[13px] transition" :class="modelForm.kind === opt.value
                   ? 'border-primary-500 bg-primary-50 text-primary-700'
                   : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
-                @click="modelForm.kind = opt.value as 'image' | 'video' | 'text'">{{ opt.label }}</button>
+                @click="modelForm.kind = opt.value as ModelKind">{{ opt.label }}</button>
             </div>
           </div>
           <div>

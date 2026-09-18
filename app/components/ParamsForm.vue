@@ -48,6 +48,9 @@ const refLimits = computed(() => {
   if ((props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'image') {
     return { image: 4, video: 0, audio: 0 }
   }
+  if (props.kind === 'audio' || props.apiFormat === 'seed-audio') {
+    return { image: 1, video: 0, audio: 3 }
+  }
   return { image: 0, video: 0, audio: 0 }
 })
 const showAnyRefs = computed(() => {
@@ -82,6 +85,18 @@ const isImageXAI = computed(() => props.apiFormat === 'xai-image' && props.kind 
 const isImageOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'image')
 const isVideoOpenAI = computed(() => (props.apiFormat === 'openai-sync' || props.apiFormat === 'openai-async' || props.apiFormat === 'full-url') && props.kind === 'video')
 const isText = computed(() => props.kind === 'text')
+const isAudio = computed(() => props.kind === 'audio' || props.apiFormat === 'seed-audio')
+
+const AUDIO_FORMATS = ['mp3', 'wav', 'pcm', 'ogg_opus'] as const
+const AUDIO_SAMPLE_RATES = [16000, 24000, 32000, 44100, 48000] as const
+
+const audioFormat = computed(() => String(props.modelValue.format ?? 'mp3'))
+const sampleRate = computed(() => Number(props.modelValue.sample_rate ?? 48000))
+const speechRate = computed(() => Number(props.modelValue.speech_rate ?? 0))
+const pitchRate = computed(() => Number(props.modelValue.pitch_rate ?? 0))
+const loudnessRate = computed(() => Number(props.modelValue.loudness_rate ?? 0))
+const speaker = computed(() => String(props.modelValue.speaker ?? ''))
+const enableSubtitle = computed(() => !!props.modelValue.enable_subtitle)
 
 const DOUBAO_IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const
 const doubaoSize = computed(() => {
@@ -415,6 +430,118 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
             @click="patch({ size: r })"
           >{{ r }}</button>
         </div>
+      </div>
+    </template>
+
+    <!-- 语音 / 音频生成模型（Seed-Audio 等） -->
+    <template v-else-if="isAudio">
+      <div>
+        <div class="field-label">音频格式</div>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="fmt in AUDIO_FORMATS"
+            :key="fmt"
+            type="button"
+            class="rounded-[4px] border px-2.5 py-1 text-[12px] font-mono uppercase transition"
+            :class="audioFormat === fmt
+              ? 'border-primary-500 bg-primary-50 text-primary-700'
+              : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
+            @click="patch({ format: fmt })"
+          >{{ fmt }}</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="field-label">采样率 (Hz)</div>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="rate in AUDIO_SAMPLE_RATES"
+            :key="rate"
+            type="button"
+            class="rounded-[4px] border px-2.5 py-1 text-[12px] font-mono transition"
+            :class="sampleRate === rate
+              ? 'border-primary-500 bg-primary-50 text-primary-700'
+              : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
+            @click="patch({ sample_rate: rate })"
+          >{{ rate }}</button>
+        </div>
+      </div>
+
+      <!-- 语速 / 音调 / 音量 -->
+      <div class="space-y-3">
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="field-label">语速</span>
+            <span class="font-mono text-[12px] text-[var(--c-fg-4)]">{{ speechRate > 0 ? `+${speechRate}` : speechRate }}</span>
+          </div>
+          <input
+            type="range" min="-50" max="100" step="5"
+            :value="speechRate"
+            class="h-1.5 w-full cursor-pointer accent-[var(--color-primary-500)]"
+            @input="(e) => patch({ speech_rate: Number((e.target as HTMLInputElement).value) })"
+          />
+          <div class="flex justify-between text-[10px] text-[var(--c-fg-6)]">
+            <span>0.5x (-50)</span>
+            <span>正常 (0)</span>
+            <span>2.0x (100)</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="field-label">音调</span>
+            <span class="font-mono text-[12px] text-[var(--c-fg-4)]">{{ pitchRate > 0 ? `+${pitchRate}` : pitchRate }}</span>
+          </div>
+          <input
+            type="range" min="-12" max="12" step="1"
+            :value="pitchRate"
+            class="h-1.5 w-full cursor-pointer accent-[var(--color-primary-500)]"
+            @input="(e) => patch({ pitch_rate: Number((e.target as HTMLInputElement).value) })"
+          />
+          <div class="flex justify-between text-[10px] text-[var(--c-fg-6)]">
+            <span>低沉 (-12)</span>
+            <span>正常 (0)</span>
+            <span>高亢 (+12)</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="field-label">音量</span>
+            <span class="font-mono text-[12px] text-[var(--c-fg-4)]">{{ loudnessRate > 0 ? `+${loudnessRate}` : loudnessRate }}</span>
+          </div>
+          <input
+            type="range" min="-50" max="100" step="5"
+            :value="loudnessRate"
+            class="h-1.5 w-full cursor-pointer accent-[var(--color-primary-500)]"
+            @input="(e) => patch({ loudness_rate: Number((e.target as HTMLInputElement).value) })"
+          />
+          <div class="flex justify-between text-[10px] text-[var(--c-fg-6)]">
+            <span>小 (-50)</span>
+            <span>正常 (0)</span>
+            <span>大 (+100)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 音色 ID (选填) -->
+      <div>
+        <div class="field-label">音色 ID（选填）</div>
+        <UInput
+          size="xs"
+          placeholder="例如：BV001_streaming 等"
+          :model-value="speaker"
+          @update:model-value="(v: string) => patch({ speaker: v })"
+        />
+        <p class="field-hint">指定预设音色或声音复刻 ID；传入参考音频时可留空。</p>
+      </div>
+
+      <!-- 字幕服务 -->
+      <div class="grid grid-cols-1 gap-2">
+        <label class="flex items-center justify-between rounded-[4px] border border-[var(--c-border)] px-3 py-1.5">
+          <span class="text-[12px] text-[var(--c-fg-2)]">返回字幕时间戳</span>
+          <USwitch size="xs" :model-value="enableSubtitle" @update:model-value="(v: boolean) => patch({ enable_subtitle: v })" />
+        </label>
       </div>
     </template>
 

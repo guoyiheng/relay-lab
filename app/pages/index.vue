@@ -121,6 +121,7 @@ const refLimits = computed(() => {
   }
   if (apiFormat.value === 'xai-image' && kind.value === 'image') return { image: 3, video: 0, audio: 0 }
   if ((apiFormat.value === 'openai-sync' || apiFormat.value === 'openai-async' || apiFormat.value === 'full-url') && kind.value === 'image') return { image: 4, video: 0, audio: 0 }
+  if (kind.value === 'audio' || apiFormat.value === 'seed-audio') return { image: 1, video: 0, audio: 3 }
   return { image: 0, video: 0, audio: 0 }
 })
 const allowKinds = computed(() =>
@@ -215,6 +216,32 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
     }
     if (rImg.length) {
       out.image = rImg
+    }
+    return out
+  }
+
+  if (apiFormat.value === 'seed-audio' || kind.value === 'audio') {
+    const base = { ...p }
+    const audio_config: Record<string, unknown> = {
+      format: String(base.format || 'mp3'),
+      sample_rate: Number(base.sample_rate || 48000),
+      speech_rate: Number(base.speech_rate ?? 0),
+      pitch_rate: Number(base.pitch_rate ?? 0),
+      loudness_rate: Number(base.loudness_rate ?? 0),
+    }
+    if (base.enable_subtitle !== undefined) {
+      audio_config.enable_subtitle = !!base.enable_subtitle
+    }
+    const out: Record<string, unknown> = {
+      audio_config,
+    }
+    if (rAud.length > 0) {
+      out.references = rAud.slice(0, 3).map((url) => ({ audio_url: url }))
+    } else if (rImg.length > 0) {
+      out.references = [{ image_url: rImg[0] }]
+    }
+    if (base.speaker && String(base.speaker).trim()) {
+      out.speaker = String(base.speaker).trim()
     }
     return out
   }
@@ -573,7 +600,7 @@ async function measureAsset(url: string, kind: 'image' | 'video') {
     const img = new Image()
     img.onload = () => { assetMetaCache[url] = { ...assetMetaCache[url], dims: `${img.naturalWidth}×${img.naturalHeight}` } }
     img.src = url
-  } else {
+  } else if (kind === 'video') {
     const v = document.createElement('video')
     v.preload = 'metadata'
     v.onloadedmetadata = () => { assetMetaCache[url] = { ...assetMetaCache[url], dims: `${v.videoWidth}×${v.videoHeight}` } }
@@ -582,7 +609,7 @@ async function measureAsset(url: string, kind: 'image' | 'video') {
 }
 watch(activeTask, (t) => {
   const url = t ? taskResultUrls(t)[0] : null
-  if (url && t && t.kind !== 'text') measureAsset(url, t.kind)
+  if (url && t && (t.kind === 'image' || t.kind === 'video')) measureAsset(url, t.kind)
 }, { immediate: true })
 
 // Task-list thumbnail (resilient — same fallback as the preview area).
@@ -1263,6 +1290,7 @@ function toggleRail() {
               class="h-full w-full object-cover" muted playsinline preload="metadata" />
             <UIcon v-else-if="item.kind === 'image'" name="i-carbon-image" class="h-4 w-4 text-[var(--c-fg-7)]" />
             <UIcon v-else-if="item.kind === 'video'" name="i-carbon-video" class="h-4 w-4 text-[var(--c-fg-7)]" />
+            <UIcon v-else-if="item.kind === 'audio'" name="i-carbon-volume-up" class="h-4 w-4 text-[var(--c-fg-7)]" />
             <UIcon v-else name="i-carbon-text-creation" class="h-4 w-4 text-[var(--c-fg-7)]" />
             <!-- 进行中/失败：右上角圆点（进行中主色呼吸，失败标红） -->
             <span v-if="item.status !== 'succeeded'" class="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full"
@@ -1300,6 +1328,7 @@ function toggleRail() {
                     class="h-full w-full object-cover" muted playsinline preload="metadata" />
                   <UIcon v-else-if="item.kind === 'image'" name="i-carbon-image" class="h-3.5 w-3.5 text-[var(--c-fg-7)]" />
                   <UIcon v-else-if="item.kind === 'video'" name="i-carbon-video" class="h-3.5 w-3.5 text-[var(--c-fg-7)]" />
+                  <UIcon v-else-if="item.kind === 'audio'" name="i-carbon-volume-up" class="h-3.5 w-3.5 text-[var(--c-fg-7)]" />
                   <UIcon v-else name="i-carbon-text-creation" class="h-3.5 w-3.5 text-[var(--c-fg-7)]" />
                   <!-- 进行中/失败：右上角圆点（进行中主色呼吸，失败标红） -->
                   <span v-if="item.status !== 'succeeded'" class="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full"

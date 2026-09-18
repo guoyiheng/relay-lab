@@ -15,8 +15,14 @@ describe('taskEndpoint', () => {
     [{ kind: 'image', api_format: 'xai-image', request_payload: { image: 'data:...' } }, 'https://api.example.com/v1/images/edits'],
     [{ kind: 'image', api_format: 'xai-image', request_payload: { images: [] } }, 'https://api.example.com/v1/images/edits'],
     [{ kind: 'image', api_format: 'full-url' }, 'https://api.example.com/v1/'],
+    [{ kind: 'audio', api_format: 'seed-audio' }, 'https://api.example.com/v1/api/v3/tts/create'],
   ] satisfies Array<[TaskEndpointInput, string]>)('maps %o to %s', (task, expected) => {
     expect(endpoint(task)).toBe(expected)
+  })
+
+  it('maps seed-audio with /api/v3 baseUrl correctly', () => {
+    expect(taskEndpoint({ kind: 'audio', api_format: 'seed-audio' }, 'https://openspeech.bytedance.com/api/v3')?.url)
+      .toBe('https://openspeech.bytedance.com/api/v3/tts/create')
   })
 
   it('returns null without a base URL', () => {

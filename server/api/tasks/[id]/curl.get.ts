@@ -42,10 +42,13 @@ export default defineEventHandler(async (event) => {
     } catch { /* fall back to provider key */ }
   }
   const bodyJson = row.request_payload || '{}'
+  const authHeader = row.api_format === 'seed-audio'
+    ? `-H ${shellSingleQuote(`X-Api-Key: ${apiKey}`)} \\`
+    : `-H ${shellSingleQuote(`Authorization: Bearer ${apiKey}`)} \\`
   const curl = [
     `curl -X ${ep.method} ${shellSingleQuote(ep.url)} \\`,
     `  -H 'Content-Type: application/json' \\`,
-    `  -H ${shellSingleQuote(`Authorization: Bearer ${apiKey}`)} \\`,
+    `  ${authHeader}`,
     `  -d ${shellSingleQuote(bodyJson)}`,
   ].join('\n')
 

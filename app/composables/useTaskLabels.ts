@@ -9,9 +9,9 @@ export function statusLabel(s: string): string {
   return ({ pending: '排队', running: '请求中', succeeded: '成功', failed: '失败' } as Record<string, string>)[s] || s
 }
 
-/** 类型中文：生图 / 生视频 / 文本 */
+/** 类型中文：生图 / 生视频 / 文本 / 音频 */
 export function kindLabel(k: string): string {
-  return ({ image: '生图', video: '生视频', text: '文本' } as Record<string, string>)[k] || k
+  return ({ image: '生图', video: '生视频', text: '文本', audio: '音频' } as Record<string, string>)[k] || k
 }
 
 /** 状态胶囊底色 + 文字色（成功=主色，失败=红，其余=灰） */

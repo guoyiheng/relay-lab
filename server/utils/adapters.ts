@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import type { ApiFormat, ModelKind } from '~~/types/api'
 import { taskEndpoint } from '~~/shared/task-curl'
 
@@ -664,6 +665,42 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
       ...ctx.params,
     }
   }
+  if (format === 'seed-audio' || ctx.kind === 'audio') {
+    const cleanParams = { ...ctx.params }
+    const audio_config: Record<string, unknown> = {
+      format: String(cleanParams.format || 'mp3'),
+      sample_rate: Number(cleanParams.sample_rate || 48000),
+      speech_rate: Number(cleanParams.speech_rate ?? 0),
+      pitch_rate: Number(cleanParams.pitch_rate ?? 0),
+      loudness_rate: Number(cleanParams.loudness_rate ?? 0),
+    }
+    if (cleanParams.enable_subtitle !== undefined) {
+      audio_config.enable_subtitle = !!cleanParams.enable_subtitle
+    }
+
+    const payload: Record<string, unknown> = {
+      model: ctx.modelId,
+      text_prompt: ctx.prompt,
+      audio_config,
+    }
+
+    const refAudios = ctx.refs?.audio || []
+    const refImages = ctx.refs?.image || []
+    if (refAudios.length > 0) {
+      payload.references = refAudios.slice(0, 3).map((r) => ({ audio_url: r.public_url }))
+    } else if (refImages[0]) {
+      payload.references = [{ image_url: refImages[0].public_url }]
+    }
+
+    if (cleanParams.speaker && String(cleanParams.speaker).trim()) {
+      payload.speaker = String(cleanParams.speaker).trim()
+    }
+    if (cleanParams.watermark && typeof cleanParams.watermark === 'object') {
+      payload.watermark = cleanParams.watermark
+    }
+
+    return payload
+  }
   if (format === 'doubao-video') {
     if (ctx.kind === 'image') {
       const cleanParams = { ...ctx.params }
@@ -759,9 +796,19 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
   }
 }
 
+export function sanitizeAudioResponsePayload(resp: any): any {
+  if (!resp || typeof resp !== 'object') return resp
+  const copy = Array.isArray(resp) ? [...resp] : { ...resp }
+  if (typeof copy.audio === 'string' && copy.audio.length > 200) {
+    copy.audio = `${copy.audio.slice(0, 100)}… [已截断，共 ${copy.audio.length} 字符]`
+  }
+  return copy
+}
+
 export function adapterSupportsKind(format: ApiFormat, kind: ModelKind): boolean {
   if (format === 'doubao-video') return kind === 'video' || kind === 'image'
   if (format === 'xai-image') return kind === 'image'
+  if (format === 'seed-audio') return kind === 'audio'
   return true
 }
 
@@ -778,6 +825,10 @@ export async function runAdapter(format: ApiFormat, ctx: AdapterContext): Promis
     return runPreparedSyncTask({ format, baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: ctx.kind, payload })
   }
   if (format === 'xai-image') return runXAIImageSync(ctx)
+  if (format === 'seed-audio') {
+    const payload = buildRequestPayload('seed-audio', ctx)
+    return runPreparedSyncTask({ format: 'seed-audio', baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: ctx.kind, payload })
+  }
   if (format === 'openai-async') return runOpenAIAsync(ctx)
   if (format === 'doubao-video') {
     if (ctx.kind === 'image') {
@@ -797,7 +848,7 @@ async function runChatText(ctx: AdapterContext): Promise<AdapterResult> {
 }
 
 // Execute the exact request payload persisted on the task row. Queue consumers use
-// this path for text/openai-sync/xai-image/full-url jobs so the HTTP request can return immediately
+// this path for text/openai-sync/xai-image/full-url/seed-audio jobs so the HTTP request can return immediately
 // without relying on a five-minute provider call surviving inside waitUntil().
 export async function runPreparedSyncTask(ctx: {
   format: ApiFormat
@@ -807,12 +858,20 @@ export async function runPreparedSyncTask(ctx: {
   payload: Record<string, unknown>
 }): Promise<AdapterResult> {
   const isText = ctx.kind === 'text'
+  const isSeedAudio = ctx.format === 'seed-audio'
   const url = taskEndpoint({ kind: ctx.kind, api_format: ctx.format, request_payload: ctx.payload }, ctx.baseUrl)?.url
   if (!url) throw new Error('缺少上游 URL')
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (isSeedAudio) {
+      headers['X-Api-Key'] = ctx.apiKey
+      headers['X-Api-Request-Id'] = crypto.randomUUID()
+    } else {
+      headers['Authorization'] = `Bearer ${ctx.apiKey}`
+    }
     const resp = await $fetch<any>(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.apiKey}` },
+      headers,
       body: ctx.payload,
       timeout: SYNC_TIMEOUT_MS,
     })
@@ -827,6 +886,26 @@ export async function runPreparedSyncTask(ctx: {
         error_message: text ? undefined : '响应中没有文本内容',
       }
     }
+    if (isSeedAudio) {
+      const sanitizedResp = sanitizeAudioResponsePayload(resp)
+      if (resp?.code !== undefined && resp.code !== 0 && resp.code !== 20000000) {
+        return {
+          status: 'failed',
+          request_payload: ctx.payload,
+          response_payload: sanitizedResp,
+          result_urls: [],
+          error_message: resp?.message || `Seed Audio 错误码: ${resp.code}`,
+        }
+      }
+      const urls = resp?.url ? [resp.url] : pickUrlsFromObject(resp)
+      return {
+        status: urls.length ? 'succeeded' : 'failed',
+        request_payload: ctx.payload,
+        response_payload: sanitizedResp,
+        result_urls: urls,
+        error_message: urls.length ? undefined : (resp?.message || '响应中未发现音频结果 URL'),
+      }
+    }
     const urls = pickUrlsFromObject(resp)
     return {
       status: urls.length ? 'succeeded' : 'failed',
@@ -837,11 +916,12 @@ export async function runPreparedSyncTask(ctx: {
     }
   } catch (err: any) {
     const e = extractError(err)
+    const sanitizedErrorData = isSeedAudio ? sanitizeAudioResponsePayload(e.data) : (e.data ?? null)
     return {
       status: 'failed',
       http_status: e.http_status,
       request_payload: ctx.payload,
-      response_payload: e.data ?? null,
+      response_payload: sanitizedErrorData,
       result_urls: [],
       error_message: e.message,
     }

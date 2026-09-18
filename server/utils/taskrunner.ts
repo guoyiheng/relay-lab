@@ -80,7 +80,7 @@ export async function persistTerminal(taskId: number, r: AdapterResult, latencyM
   // 结果登记一行 generated asset（source=generated，幂等 by task_id+result_idx），使其可被
   // 当作参考素材复用（用 asset id 引用，不再重新下载导入）。text 无 result_urls，自然跳过。
   if (resultUrls.length) {
-    const assetKind: AssetKind | null = kind === 'video' ? 'video' : kind === 'image' ? 'image' : null
+    const assetKind: AssetKind | null = kind === 'video' ? 'video' : kind === 'image' ? 'image' : kind === 'audio' ? 'audio' : null
     const persisted = await Promise.all(resultUrls.map((u, i) => persistResultToR2(u, owner.storage_namespace, taskId, i)))
     resultUrls = persisted.map((p) => p.url)
     if (assetKind) {
@@ -246,7 +246,7 @@ export async function handleTaskMessage(
   const payload = row.request_payload ? JSON.parse(row.request_payload) : {}
 
   if (msg.phase === 'run-sync') {
-    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url' || (format === 'doubao-video' && kind === 'image')
+    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url' || (format === 'doubao-video' && kind === 'image') || format === 'seed-audio'
     if (kind !== 'text' && (!isSyncFormat || !adapterSupportsKind(format, kind))) {
       await persistTerminal(msg.taskId, {
         status: 'failed', request_payload: payload, response_payload: null, result_urls: [],

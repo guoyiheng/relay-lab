@@ -33,7 +33,7 @@ const stats = computed(() => historyStore.stats as StatsRow[])
 const loading = computed(() => historyStore.loading)
 
 const filterProvider = ref<number | null>(null)
-const filterKind = ref<'image' | 'video' | null>(null)
+const filterKind = ref<ModelKind | null>(null)
 const filterStatus = ref<'succeeded' | 'failed' | null>(null)
 
 // Detail dialog state — opens a full task viewer (preview / overview / request / response)
@@ -75,6 +75,8 @@ const KIND_OPTIONS = [
   { value: null, label: '全部类型' },
   { value: 'image', label: '图像' },
   { value: 'video', label: '视频' },
+  { value: 'text', label: '文本' },
+  { value: 'audio', label: '音频' },
 ]
 const STATUS_OPTIONS = [
   { value: null, label: '全部状态' },

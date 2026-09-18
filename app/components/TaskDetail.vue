@@ -192,6 +192,7 @@ const formatLabel = computed(() => {
   if (props.task.api_format === 'doubao-video') {
     return props.task.kind === 'image' ? '火山 Seedream · 同步' : 'Seedance官方 · 异步'
   }
+  if (props.task.api_format === 'seed-audio') return 'Seed Audio · 同步'
   if (props.task.api_format === 'full-url') return '完整 URL · 直连'
   return props.task.api_format
 })
@@ -390,7 +391,7 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
         <div>
           <div class="kv"><span class="kv-key">平台</span><span class="kv-val">{{ task.provider_name }}</span></div>
           <div class="kv"><span class="kv-key">模型</span><span class="kv-val">{{ task.model_name }}</span></div>
-          <div class="kv"><span class="kv-key">类型</span><span class="kv-val">{{ task.kind === 'image' ? '图像' : '视频' }}</span></div>
+          <div class="kv"><span class="kv-key">类型</span><span class="kv-val">{{ kindLabel(task.kind) }}</span></div>
           <div class="kv"><span class="kv-key">协议</span><span class="kv-val">{{ formatLabel }}</span></div>
           <div v-if="task.remote_task_id && !preview" class="kv">
             <span class="kv-key">远程任务 ID</span>

@@ -123,8 +123,8 @@ export function verifyPassword(password: string, stored: string) {
 }
 
 // ── 类型 ──────────────────────────────────────────────────────────────────────
-export type ApiFormat = 'openai-sync' | 'openai-async' | 'xai-image' | 'doubao-video' | 'full-url'
-export type ModelKind = 'image' | 'video' | 'text'
+export type ApiFormat = 'openai-sync' | 'openai-async' | 'xai-image' | 'doubao-video' | 'seed-audio' | 'full-url'
+export type ModelKind = 'image' | 'video' | 'text' | 'audio'
 export type PriceMode = 'per_call' | 'per_mtoken' | 'per_mtoken_video'
 export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 export type AssetKind = 'image' | 'video' | 'audio'

@@ -41,7 +41,7 @@ async function collectTaskFiles(
   let idx = 0
   for (const url of urls) {
     idx++
-    const ext = t.kind === 'image' ? 'png' : t.kind === 'video' ? 'mp4' : 'bin'
+    const ext = t.kind === 'image' ? 'png' : t.kind === 'video' ? 'mp4' : t.kind === 'audio' ? 'mp3' : 'bin'
     try {
       files[p(`result-${idx}.${ext}`)] = await fetchBytes(url)
     } catch {
@@ -64,7 +64,7 @@ async function collectTaskFiles(
       ri++
       try {
         const buf = await fetchBytes(r.public_url)
-        const ext = (r.filename?.split('.').pop() || (kind === 'image' ? 'png' : kind === 'video' ? 'mp4' : 'bin')).toLowerCase()
+        const ext = (r.filename?.split('.').pop() || (kind === 'image' ? 'png' : kind === 'video' ? 'mp4' : kind === 'audio' ? 'mp3' : 'bin')).toLowerCase()
         files[p(`reference/${kind}-${ri}.${ext}`)] = buf
       } catch { /* skip unreachable ref */ }
     }
@@ -168,7 +168,7 @@ export async function downloadTaskZip(t: TaskRow, _model: Model | null = null) {
   const urls = taskResultUrls(t)
   const base = `relay-${t.id}-${slug(t.model_name)}`
   if (urls.length) {
-    const ext = t.kind === 'image' ? 'png' : t.kind === 'video' ? 'mp4' : 'bin'
+    const ext = t.kind === 'image' ? 'png' : t.kind === 'video' ? 'mp4' : t.kind === 'audio' ? 'mp3' : 'bin'
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i]
       if (!url) continue

@@ -21,7 +21,12 @@ export function taskEndpoint(
   if (!baseUrl) return null
   if (task.api_format === 'full-url') return { method: 'POST', url: baseUrl }
   if (task.kind === 'text') return { method: 'POST', url: joinUrl(baseUrl, 'chat/completions') }
-  const resource = task.kind === 'image' ? 'images' : 'videos'
+  if (task.api_format === 'seed-audio') {
+    const clean = baseUrl.replace(/\/+$/, '')
+    const path = clean.endsWith('/api/v3') ? 'tts/create' : 'api/v3/tts/create'
+    return { method: 'POST', url: joinUrl(baseUrl, path) }
+  }
+  const resource = task.kind === 'image' ? 'images' : task.kind === 'audio' ? 'audio' : 'videos'
   if (task.api_format === 'doubao-video') {
     if (task.kind === 'image') {
       return { method: 'POST', url: joinUrl(baseUrl, 'images/generations') }

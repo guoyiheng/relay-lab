@@ -1,5 +1,5 @@
-export type ApiFormat = 'openai-sync' | 'openai-async' | 'xai-image' | 'doubao-video' | 'full-url'
-export type ModelKind = 'image' | 'video' | 'text'
+export type ApiFormat = 'openai-sync' | 'openai-async' | 'xai-image' | 'doubao-video' | 'seed-audio' | 'full-url'
+export type ModelKind = 'image' | 'video' | 'text' | 'audio'
 // per_mtoken_video: 按量计费，但按"输入是否含视频"分两档单价（Seedance）。
 export type PriceMode = 'per_call' | 'per_mtoken' | 'per_mtoken_video'
 export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
@@ -186,7 +186,7 @@ export interface TaskListQuery {
   limit?: number
   ids?: number[]
   provider_id?: number | null
-  kind?: 'image' | 'video' | null
+  kind?: ModelKind | null
   status?: 'succeeded' | 'failed' | null
 }
 

@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
-import type { TaskRow } from '~~/types/api'
+import type { TaskRow, ModelKind } from '~~/types/api'
 
 export interface HistoryFilters {
   provider_id: number | null
-  kind: 'image' | 'video' | null
+  kind: ModelKind | null
   status: 'succeeded' | 'failed' | null
 }
 

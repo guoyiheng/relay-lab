@@ -389,11 +389,14 @@ export class OfflineDataSource implements DataSource {
     const endpoint = taskEndpoint(task, provider.base_url)
     if (!endpoint) return { curl: '' }
     const bodyJson = JSON.stringify(task.request_payload ?? {})
+    const authHeader = task.api_format === 'seed-audio'
+      ? `-H ${shellSingleQuote(`X-Api-Key: ${apiKey}`)} \\`
+      : `-H ${shellSingleQuote(`Authorization: Bearer ${apiKey}`)} \\`
     return {
       curl: [
         `curl -X ${endpoint.method} ${shellSingleQuote(endpoint.url)} \\`,
         `  -H 'Content-Type: application/json' \\`,
-        `  -H ${shellSingleQuote(`Authorization: Bearer ${apiKey}`)} \\`,
+        `  ${authHeader}`,
         `  -d ${shellSingleQuote(bodyJson)}`,
       ].join('\n'),
     }

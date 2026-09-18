@@ -2,7 +2,7 @@ import { useDb, type ModelRecord, type ProviderRecord, type ModelKind, type Pric
 import { serializeModel } from '~~/server/utils/serialize'
 import { requireUserId } from '~~/server/utils/auth'
 
-const VALID_KINDS: ModelKind[] = ['image', 'video', 'text']
+const VALID_KINDS: ModelKind[] = ['image', 'video', 'text', 'audio']
 const VALID_PRICE_MODES: PriceMode[] = ['per_call', 'per_mtoken', 'per_mtoken_video']
 
 function normalizeKeys(input: unknown): string | null {

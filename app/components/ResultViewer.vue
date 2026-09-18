@@ -114,6 +114,39 @@ function onVideoFullscreen(url: string) {
           </div>
         </div>
       </template>
+      <!-- 音频结果 -->
+      <template v-else-if="task.status === 'succeeded' && task.kind === 'audio' && resultUrls.length">
+        <div class="flex w-full max-w-2xl flex-col gap-3">
+          <div
+            v-for="(url, i) in resultUrls"
+            :key="i"
+            class="overflow-hidden rounded-[8px] border border-[var(--c-border)] bg-[var(--c-surface)] p-4 shadow-sm"
+          >
+            <div class="mb-3 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="grid h-8 w-8 place-items-center rounded-full bg-primary-50 text-primary-600">
+                  <UIcon name="i-carbon-volume-up" class="h-4 w-4" />
+                </div>
+                <div>
+                  <div class="text-[13px] font-medium text-[var(--c-fg)]">{{ task.model_name || '音频结果' }}</div>
+                  <div class="text-[11px] text-[var(--c-fg-5)]">生成音频 #{{ i + 1 }}</div>
+                </div>
+              </div>
+              <a
+                :href="url"
+                download
+                target="_blank"
+                class="inline-flex items-center gap-1 rounded-[4px] border border-[var(--c-border)] bg-[var(--c-surface-2)] px-2.5 py-1 text-[12px] text-[var(--c-fg-3)] transition hover:border-[var(--c-fg-5)]"
+                title="下载音频"
+              >
+                <UIcon name="i-carbon-download" class="h-3.5 w-3.5" />
+                <span>下载</span>
+              </a>
+            </div>
+            <audio :src="url" class="w-full" controls playsinline preload="metadata" draggable="true" @dragstart="onAssetDragStart($event, url)" />
+          </div>
+        </div>
+      </template>
       <template v-else-if="task.status === 'failed'">
         <div class="flex max-w-xl flex-col items-center gap-3 text-center">
           <UIcon name="i-carbon-warning-alt" class="h-10 w-10 text-red-500" />
