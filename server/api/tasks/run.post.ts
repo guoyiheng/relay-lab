@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
       | { type: 'text'; text?: string }
       | { type: 'ref'; upload_id?: string; kind?: AssetKind }
     >
+    task_id?: number
   }>(event)
   const provider_id = Number(body?.provider_id)
   const model_id = Number(body?.model_id)
@@ -66,6 +67,14 @@ export default defineEventHandler(async (event) => {
   }
 
   const params = body?.params && typeof body.params === 'object' ? body.params : {}
+
+  // Draft tasks are created before the client starts uploading references.
+  // Reuse that row so the task list can show progress immediately.
+  const existingTaskId = Number(body?.task_id)
+  if (existingTaskId) {
+    const existing = await db.prepare('SELECT id FROM tasks WHERE id = ? AND user_id = ? AND status = ?').get(existingTaskId, userId, 'pending') as { id: number } | null
+    if (!existing) throw createError({ statusCode: 400, statusMessage: '任务草稿不存在或已开始处理' })
+  }
 
   // Resolve and validate references
   const refIdsByKind: Record<AssetKind, string[]> = {
@@ -149,7 +158,7 @@ export default defineEventHandler(async (event) => {
   const now = Date.now()
   // D1 无交互式事务：先 INSERT tasks 用 RETURNING 拿 id，再 batch 落 task_assets。
   // 二者非原子——task_assets 失败不影响任务本身可见（refs 仅用于详情展示），可接受。
-  const inserted = await db
+  const inserted = existingTaskId ? { id: existingTaskId } : await db
     .prepare(
       `INSERT INTO tasks (
          user_id, provider_id, provider_name, model_id, model_name, kind, api_format,
@@ -184,6 +193,9 @@ export default defineEventHandler(async (event) => {
     ) as { id: number } | null
   const id = Number(inserted?.id)
   if (!id) throw createError({ statusCode: 500, statusMessage: '创建任务失败' })
+  if (existingTaskId) {
+    await db.prepare(`UPDATE tasks SET provider_name = ?, model_name = ?, prompt = ?, params = ?, request_payload = ?, status = 'running', updated_at = ? WHERE id = ? AND user_id = ?`).run(provider.name, model.display_name || model.model_id, prompt, JSON.stringify(params), JSON.stringify(initialPayload), now, id, userId)
+  }
   if (refRows.length) {
     await db.batch([
       ...refRows.map((row) =>

@@ -52,6 +52,9 @@ export interface DataSource {
   listTasks(query?: TaskListQuery): Promise<TaskRow[]>
   getTask(id: number): Promise<TaskRow>
   runTask(payload: TaskRunPayload): Promise<TaskRow>
+  createTaskDraft(payload: import('~~/types/api').TaskDraftPayload): Promise<TaskRow>
+  startTask(id: number, payload: TaskRunPayload): Promise<TaskRow>
+  failTask(id: number, message: string): Promise<void>
   /**
    * 刷新后恢复未终态任务的轮询驱动。在线由服务端(队列/waitUntil)驱动，前端只轮询 DB，
    * 故为 no-op；离线的轮询循环在浏览器内存里，页面刷新会丢，需据持久化状态重启。

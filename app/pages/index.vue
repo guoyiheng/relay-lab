@@ -431,16 +431,44 @@ async function submit() {
   const params = parseParams()
   if (params === null) { errorBanner.value = jsonParamsError.value; return }
 
+  // 先创建一条 pending 任务，让任务列表立即有记录；后续素材上传和提交在后台继续。
+  const capturedRefs = {
+    image: [...refs.value.image],
+    video: [...refs.value.video],
+    audio: [...refs.value.audio],
+  }
+  const capturedSegments = [...promptSegments.value]
+  const capturedPrompt = prompt.value.slice(0, 2000)
+
   trackButtonClick('submit', { provider_id: selectedProviderId.value, model_id: selectedModelId.value, kind: kind.value })
 
+  const dataSource = useDataSource()
+  const useDraft = dataSource.mode === 'online'
   submitting.value = true
+  let draft: TaskRow | null = null
   try {
+    if (useDraft) {
+      draft = await dataSource.createTaskDraft({
+        provider_id: selectedProviderId.value,
+        model_id: selectedModelId.value,
+        prompt: capturedPrompt,
+        params,
+      })
+      tasksStore.upsert(draft)
+      activeId.value = draft.id
+      detailTab.value = 'preview'
+      startPoll(draft.id)
+      // 草稿已创建，按钮立即恢复；下面的素材处理继续在后台执行。
+      submitting.value = false
+    } else {
+      // 离线模式已有 IndexedDB 后台任务链路，直接交给 runTask。
+      submitting.value = false
+    }
     // Upload pending refs first (deferred upload); server dedups by sha256.
-    const [imageIds, videoIds, audioIds] = await Promise.all([
-      resolveRefKind(refs.value.image),
-      resolveRefKind(refs.value.video),
-      resolveRefKind(refs.value.audio),
-    ])
+    // 按图 → 视频 → 音频依次处理，避免多个大文件同时占满带宽。
+    const imageIds = await resolveRefKind(capturedRefs.image)
+    const videoIds = await resolveRefKind(capturedRefs.video)
+    const audioIds = await resolveRefKind(capturedRefs.audio)
     const resolvedBySig = new Map<string, string>()
     const registerResolved = (items: UploadItem[], ids: string[]) => {
       if (items.length !== ids.length) throw new Error('参考素材上传结果不完整，请重试')
@@ -453,10 +481,10 @@ async function submit() {
         if (item.public_url) resolvedBySig.set(`url:${item.public_url}`, id)
       })
     }
-    registerResolved(refs.value.image, imageIds)
-    registerResolved(refs.value.video, videoIds)
-    registerResolved(refs.value.audio, audioIds)
-    const segments = promptSegments.value.map((segment) => {
+    registerResolved(capturedRefs.image, imageIds)
+    registerResolved(capturedRefs.video, videoIds)
+    registerResolved(capturedRefs.audio, audioIds)
+    const segments = capturedSegments.map((segment) => {
       if (segment.type === 'text') return segment
       const uploadId = resolvedBySig.get(segment.sig)
       if (!uploadId) throw new Error('提示词中的引用素材无法解析，请重新选择素材')
@@ -465,8 +493,21 @@ async function submit() {
 
     // Truncate the readable prompt to the same limit enforced by the editor.
     const MAX_PROMPT = 2000
-    const modelPrompt = prompt.value.slice(0, MAX_PROMPT)
-    const res = await useDataSource().runTask({
+    const modelPrompt = capturedPrompt.slice(0, MAX_PROMPT)
+    const res = useDraft
+      ? await dataSource.startTask(draft!.id, {
+          provider_id: selectedProviderId.value,
+          model_id: selectedModelId.value,
+          prompt: modelPrompt,
+          params,
+          refs: {
+            image: Array.from(new Set(imageIds)),
+            video: Array.from(new Set(videoIds)),
+            audio: Array.from(new Set(audioIds)),
+          },
+          segments: segments.length ? segments : undefined,
+        })
+      : await dataSource.runTask({
       provider_id: selectedProviderId.value,
       model_id: selectedModelId.value,
       prompt: modelPrompt,
@@ -479,10 +520,12 @@ async function submit() {
       segments: segments.length ? segments : undefined,
     })
     tasksStore.upsert(res)
-    activeId.value = res.id
-    detailTab.value = 'preview'
     if (!TERMINAL.has(res.status)) startPoll(res.id)
   } catch (err: any) {
+    if (draft) {
+      await useDataSource().failTask(draft.id, err?.data?.statusMessage || err?.statusMessage || err?.message || '素材处理失败')
+      tasksStore.upsert({ ...draft, status: 'failed', error_message: err?.data?.statusMessage || err?.statusMessage || err?.message || '素材处理失败' })
+    }
     errorBanner.value
       = err?.data?.statusMessage
       || err?.statusMessage

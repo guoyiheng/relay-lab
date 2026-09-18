@@ -213,3 +213,10 @@ export interface TaskRunPayload {
     | { type: 'ref'; upload_id: string; kind: 'image' | 'video' | 'audio' }
   >
 }
+
+export interface TaskDraftPayload {
+  provider_id: number
+  model_id: number
+  prompt: string
+  params?: Record<string, unknown>
+}

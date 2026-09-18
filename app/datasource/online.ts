@@ -17,6 +17,7 @@ import type {
   TaskRow,
   TaskListQuery,
   TaskRunPayload,
+  TaskDraftPayload,
   RefResolveItem,
   PickerAsset,
   ModelKind,
@@ -89,6 +90,15 @@ export class OnlineDataSource implements DataSource {
   }
   runTask(payload: TaskRunPayload) {
     return $fetch<TaskRow>('/api/tasks/run', { method: 'POST', body: payload })
+  }
+  createTaskDraft(payload: TaskDraftPayload) {
+    return $fetch<TaskRow>('/api/tasks/draft', { method: 'POST', body: payload })
+  }
+  startTask(id: number, payload: TaskRunPayload) {
+    return $fetch<TaskRow>('/api/tasks/run', { method: 'POST', body: { ...payload, task_id: id } })
+  }
+  async failTask(id: number, message: string) {
+    await $fetch(`/api/tasks/${id}/fail`, { method: 'POST', body: { message } })
   }
   async deleteTask(id: number) {
     await $fetch(`/api/tasks/${id}`, { method: 'DELETE' })
