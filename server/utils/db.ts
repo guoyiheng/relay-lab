@@ -114,12 +114,19 @@ export function hashPassword(password: string, salt?: string) {
 }
 
 export function verifyPassword(password: string, stored: string) {
-  const [salt, hex] = stored.split(':')
-  if (!salt || !hex) return false
-  const buf = crypto.scryptSync(password, salt, 64)
-  const a = Buffer.from(hex, 'hex')
-  if (a.length !== buf.length) return false
-  return crypto.timingSafeEqual(a, buf)
+  try {
+    const [salt, hex] = stored.split(':')
+    if (!salt || !hex || !/^[0-9a-f]+$/i.test(hex)) return false
+    const buf = crypto.scryptSync(password, salt, 64)
+    const a = Buffer.from(hex, 'hex')
+    if (a.length !== buf.length) return false
+    return crypto.timingSafeEqual(a, buf)
+  } catch {
+    // A malformed legacy hash must behave like a bad password. Letting
+    // scrypt throw here turns an otherwise recoverable login failure into a
+    // generic server error page.
+    return false
+  }
 }
 
 // ── 类型 ──────────────────────────────────────────────────────────────────────
