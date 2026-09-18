@@ -8,14 +8,24 @@ interface FullscreenState {
   url: string | null
   kind: 'image' | 'video' | 'audio'
   trimSeconds: number | null
-  onTrim?: (seconds: number | null) => void
+  trimStartSeconds: number | null
+  trimEndSeconds: number | null
+  onTrim?: (selection: { start: number; end: number } | null) => void
 }
 
-const state = reactive<FullscreenState>({ url: null, kind: 'image', trimSeconds: null })
+const state = reactive<FullscreenState>({
+  url: null,
+  kind: 'image',
+  trimSeconds: null,
+  trimStartSeconds: null,
+  trimEndSeconds: null,
+})
 
 export interface FullscreenOpenOptions {
   trimSeconds?: number | null
-  onTrim?: (seconds: number | null) => void
+  trimStartSeconds?: number | null
+  trimEndSeconds?: number | null
+  onTrim?: (selection: { start: number; end: number } | null) => void
 }
 
 export function useFullscreenViewer() {
@@ -23,11 +33,15 @@ export function useFullscreenViewer() {
     state.url = url
     state.kind = kind
     state.trimSeconds = options.trimSeconds ?? null
+    state.trimStartSeconds = options.trimStartSeconds ?? null
+    state.trimEndSeconds = options.trimEndSeconds ?? options.trimSeconds ?? null
     state.onTrim = options.onTrim
   }
   function close() {
     state.url = null
     state.trimSeconds = null
+    state.trimStartSeconds = null
+    state.trimEndSeconds = null
     state.onTrim = undefined
   }
   return { state, open, close }

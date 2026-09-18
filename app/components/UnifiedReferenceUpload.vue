@@ -12,7 +12,9 @@ export interface UploadItem {
   file?: File           // present only for pending local files
   pending?: boolean
   sig?: string          // dedup signature (name|size|lastModified or url)
-  trimSeconds?: number | null // optional preview clip length for video/audio references
+  trimSeconds?: number | null // 兼容旧数据：仅保存结束秒数
+  trimStartSeconds?: number | null
+  trimEndSeconds?: number | null
 }
 
 interface RefsState {
@@ -180,7 +182,7 @@ function remove(item: UploadItem) {
   })
 }
 
-function setTrimSeconds(item: UploadItem, seconds: number | null) {
+function setTrimSelection(item: UploadItem, selection: { start: number; end: number } | null) {
   const next = {
     image: [...props.modelValue.image],
     video: [...props.modelValue.video],
@@ -188,14 +190,21 @@ function setTrimSeconds(item: UploadItem, seconds: number | null) {
   }
   const list = next[item.kind]
   const found = list.find((candidate) => isSameRef(candidate, item))
-  if (found) found.trimSeconds = seconds
+  if (found) {
+    found.trimStartSeconds = selection?.start ?? null
+    found.trimEndSeconds = selection?.end ?? null
+    // 保留旧字段，避免历史状态和下游调用失去兼容。
+    found.trimSeconds = selection?.end ?? null
+  }
   emit('update:modelValue', next)
 }
 
 function preview(item: UploadItem) {
   openFullscreen(item.public_url, item.kind, {
     trimSeconds: item.kind === 'image' ? null : item.trimSeconds,
-    onTrim: item.kind === 'image' ? undefined : (seconds) => setTrimSeconds(item, seconds),
+    trimStartSeconds: item.kind === 'image' ? null : item.trimStartSeconds,
+    trimEndSeconds: item.kind === 'image' ? null : (item.trimEndSeconds ?? item.trimSeconds),
+    onTrim: item.kind === 'image' ? undefined : (selection) => setTrimSelection(item, selection),
   })
 }
 
