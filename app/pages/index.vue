@@ -167,6 +167,8 @@ watch(selectedProviderId, () => {
 function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknown> {
   // use_asset_library 是内部标志（是否走素材库），不会外发上游 → 预览里也不显示。
   const p = { ...pIn }
+  // 水印统一关闭，历史 localStorage / JSON 参数中的旧开关也不再生效。
+  delete (p as any).watermark
   delete (p as any).use_asset_library
   const rImg = refs.value.image.map((r) => r.public_url)
   const rVid = refs.value.video.map((r) => r.public_url)
@@ -200,7 +202,6 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
     delete (base as any).resolution
     delete (base as any).generate_audio
     const size = String(base.size || '2K')
-    const watermark = paramMode.value === 'form' ? false : (base.watermark !== undefined ? !!base.watermark : false)
     delete (base as any).size
     delete (base as any).watermark
     delete (base as any).response_format
@@ -211,7 +212,7 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
       response_format: 'url',
       size,
       stream: false,
-      watermark,
+      watermark: false,
       ...base,
     }
     if (rImg.length) {
@@ -366,9 +367,7 @@ function parseParams(): Record<string, unknown> | null {
   jsonParamsError.value = null
   if (paramMode.value === 'form') {
     const p = { ...formParams.value }
-    if (apiFormat.value === 'doubao-video' && kind.value === 'image') {
-      delete p.watermark
-    }
+    delete p.watermark
     return p
   }
   const txt = jsonParamsText.value.trim()
@@ -384,6 +383,7 @@ function parseParams(): Record<string, unknown> | null {
       delete out._refs
       delete out.content
       delete out.image
+      delete out.watermark
       return out
     }
     jsonParamsError.value = 'JSON 必须是对象'

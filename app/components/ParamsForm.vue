@@ -145,7 +145,6 @@ const duration = computed(() => Number(props.modelValue.duration ?? 6))
 const size = computed(() => String(props.modelValue.size ?? ''))
 const n = computed(() => Number(props.modelValue.n ?? 1))
 const generateAudio = computed(() => props.modelValue.generate_audio !== false)
-const watermark = computed(() => !!props.modelValue.watermark)
 // 「参考走素材库」：参考素材先入 Seedance 素材库再以 asset:// 引用，避免真人/违规拦截。
 // 仅 Seedance 视频 + 有参考素材时才有意义。
 const useAssetLibrary = computed(() => !!props.modelValue.use_asset_library)
@@ -251,14 +250,10 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
           >{{ d }}s</button>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2">
+      <div>
         <label class="flex items-center justify-between rounded-[4px] border border-[var(--c-border)] px-3 py-1.5">
           <span class="text-[12px] text-[var(--c-fg-2)]">声音</span>
           <USwitch size="xs" :model-value="generateAudio" @update:model-value="(v: boolean) => patch({ generate_audio: v })" />
-        </label>
-        <label class="flex items-center justify-between rounded-[4px] border border-[var(--c-border)] px-3 py-1.5">
-          <span class="text-[12px] text-[var(--c-fg-2)]">水印</span>
-          <USwitch size="xs" :model-value="watermark" @update:model-value="(v: boolean) => patch({ watermark: v })" />
         </label>
       </div>
       <label v-if="hasAnyRef"

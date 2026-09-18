@@ -474,7 +474,6 @@ async function runDoubaoVideo(ctx: AdapterContext): Promise<AdapterResult> {
   const resolution = (ctx.params.resolution as string) || '480p'
   const duration = Number(ctx.params.duration) || 6
   const generate_audio = ctx.params.generate_audio !== undefined ? !!ctx.params.generate_audio : true
-  const watermark = !!ctx.params.watermark
   const extra = { ...ctx.params }
   // use_asset_library 是内部标志（是否把参考素材走 Seedance 素材库），不外发上游。
   for (const k of ['ratio', 'resolution', 'duration', 'generate_audio', 'watermark', 'seed', 'return_last_frame', 'use_asset_library']) {
@@ -492,7 +491,7 @@ async function runDoubaoVideo(ctx: AdapterContext): Promise<AdapterResult> {
     resolution,
     duration,
     generate_audio,
-    watermark,
+    watermark: false,
     ...extra,
   }
 
@@ -659,10 +658,12 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
   // provider's image/video api_format. Queue consumers execute this exact persisted
   // payload, so building `messages` here avoids sending an image-style `prompt` body.
   if (ctx.kind === 'text') {
+    const cleanParams = { ...ctx.params }
+    delete (cleanParams as any).watermark
     return {
       model: ctx.modelId,
       messages: [{ role: 'user', content: ctx.prompt }],
-      ...ctx.params,
+      ...cleanParams,
     }
   }
   if (format === 'seed-audio' || ctx.kind === 'audio') {
@@ -695,10 +696,6 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
     if (cleanParams.speaker && String(cleanParams.speaker).trim()) {
       payload.speaker = String(cleanParams.speaker).trim()
     }
-    if (cleanParams.watermark && typeof cleanParams.watermark === 'object') {
-      payload.watermark = cleanParams.watermark
-    }
-
     return payload
   }
   if (format === 'doubao-video') {
@@ -712,7 +709,6 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
       delete (cleanParams as any).use_asset_library
       const refImages = collectImageRefs(ctx)
       const size = String(cleanParams.size || '2K')
-      const watermark = cleanParams.watermark !== undefined ? !!cleanParams.watermark : false
       const imageInParams = cleanParams.image
       delete (cleanParams as any).size
       delete (cleanParams as any).watermark
@@ -726,7 +722,7 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
         response_format: 'url',
         size,
         stream: false,
-        watermark,
+        watermark: false,
         ...cleanParams,
       }
       if (refImages.length) {
@@ -740,16 +736,16 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
     const resolution = (ctx.params.resolution as string) || '480p'
     const duration = Number(ctx.params.duration) || 6
     const generate_audio = ctx.params.generate_audio !== undefined ? !!ctx.params.generate_audio : true
-    const watermark = !!ctx.params.watermark
     const extra = { ...ctx.params }
     for (const k of ['ratio', 'resolution', 'duration', 'generate_audio', 'watermark', 'seed', 'return_last_frame', 'use_asset_library']) {
       delete (extra as any)[k]
     }
     const content = buildDoubaoContent(ctx)
-    return { model: ctx.modelId, content, ratio, resolution, duration, generate_audio, watermark, ...extra }
+    return { model: ctx.modelId, content, ratio, resolution, duration, generate_audio, watermark: false, ...extra }
   }
   if (format === 'xai-image') {
     const cleanParams = { ...ctx.params }
+    delete (cleanParams as any).watermark
     const refImages = collectImageRefs(ctx).slice(0, 3)
 
     // Normalize values that may have survived in the per-kind localStorage from
@@ -784,6 +780,7 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
 
   // openai-sync / openai-async (image or video kind)
   const cleanParams = { ...ctx.params }
+  delete (cleanParams as any).watermark
   delete (cleanParams as any).ratio
   delete (cleanParams as any).image_resolution
   if (format === 'openai-async') delete (cleanParams as any).webhook

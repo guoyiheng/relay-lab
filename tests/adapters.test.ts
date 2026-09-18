@@ -20,12 +20,12 @@ describe('buildRequestPayload for doubao-video image (Seedream)', () => {
     expect(payload.stream).toBe(false)
   })
 
-  it('preserves watermark: true when explicitly provided', () => {
+  it('keeps watermark disabled when an old parameter enables it', () => {
     const payload = buildRequestPayload('doubao-video', {
       ...baseCtx,
       params: { watermark: true },
     })
-    expect(payload.watermark).toBe(true)
+    expect(payload.watermark).toBe(false)
   })
 
   it('preserves watermark: false when explicitly provided', () => {
