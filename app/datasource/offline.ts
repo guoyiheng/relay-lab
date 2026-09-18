@@ -335,6 +335,13 @@ export class OfflineDataSource implements DataSource {
   runTask(payload: TaskRunPayload): Promise<TaskRow> {
     return runOfflineTask(payload)
   }
+  createTaskDraft(payload: import('~~/types/api').TaskDraftPayload): Promise<TaskRow> {
+    return runOfflineTask({ ...payload, refs: { image: [], video: [], audio: [] } })
+  }
+  startTask(_id: number, payload: TaskRunPayload): Promise<TaskRow> {
+    return runOfflineTask(payload)
+  }
+  async failTask(_id: number, _message: string) {}
 
   // 刷新后重启浏览器侧轮询循环（在线由服务端驱动，无需此步）。
   resumeTaskPolls(tasks: TaskRow[]): void {

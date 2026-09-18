@@ -863,7 +863,9 @@ export async function runPreparedSyncTask(ctx: {
   payload: Record<string, unknown>
 }): Promise<AdapterResult> {
   const isText = ctx.kind === 'text'
-  const isSeedAudio = ctx.format === 'seed-audio'
+  // 兼容历史配置：doubao-video provider 下的 audio 模型也必须使用
+  // Seed Audio 的 X-Api-Key，而不是视频协议的 Bearer 鉴权。
+  const isSeedAudio = ctx.kind === 'audio' || ctx.format === 'seed-audio'
   const url = taskEndpoint({ kind: ctx.kind, api_format: ctx.format, request_payload: ctx.payload }, ctx.baseUrl)?.url
   if (!url) throw new Error('缺少上游 URL')
   try {

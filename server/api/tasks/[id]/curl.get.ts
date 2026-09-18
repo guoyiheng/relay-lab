@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
     } catch { /* fall back to provider key */ }
   }
   const bodyJson = row.request_payload || '{}'
-  const isSeedAudio = row.api_format === 'seed-audio' || (row.api_format === 'doubao-video' && row.kind === 'audio')
+  const isSeedAudio = row.kind === 'audio' || row.api_format === 'seed-audio'
   if (isSeedAudio) {
     return {
       curl: [

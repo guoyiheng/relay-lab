@@ -259,6 +259,38 @@ describe('legacy doubao-video provider with audio model', () => {
     )
     vi.unstubAllGlobals()
   })
+
+  it('uses X-Api-Key even when the legacy format reaches the sync runner directly', async () => {
+    const { runPreparedSyncTask } = await import('../server/utils/adapters')
+    const fetchMock = vi.fn().mockResolvedValue({ code: 20000000, url: 'https://example.com/audio.wav' })
+    vi.stubGlobal('$fetch', fetchMock)
+    await runPreparedSyncTask({
+      format: 'doubao-video',
+      baseUrl: 'https://openspeech.bytedance.com',
+      apiKey: 'test-key',
+      kind: 'audio',
+      payload: { model: 'seed-audio-1.0', text_prompt: 'hello', audio_config: { format: 'mp3', sample_rate: 48000 } },
+    })
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual(expect.objectContaining({ 'X-Api-Key': 'test-key' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Authorization')
+    vi.unstubAllGlobals()
+  })
+
+  it('uses X-Api-Key for a full-url audio provider', async () => {
+    const { runPreparedSyncTask } = await import('../server/utils/adapters')
+    const fetchMock = vi.fn().mockResolvedValue({ code: 20000000, url: 'https://example.com/audio.wav' })
+    vi.stubGlobal('$fetch', fetchMock)
+    await runPreparedSyncTask({
+      format: 'full-url',
+      baseUrl: 'https://openspeech.bytedance.com/api/v3/tts/create',
+      apiKey: 'test-key',
+      kind: 'audio',
+      payload: { model: 'seed-audio-1.0', text_prompt: 'hello', audio_config: { format: 'mp3', sample_rate: 48000 } },
+    })
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual(expect.objectContaining({ 'X-Api-Key': 'test-key' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Authorization')
+    vi.unstubAllGlobals()
+  })
 })
 
 describe('sanitizeAudioResponsePayload', () => {
