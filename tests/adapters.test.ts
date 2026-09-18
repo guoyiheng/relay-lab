@@ -197,6 +197,32 @@ describe('buildRequestPayload for seed-audio', () => {
   })
 })
 
+describe('legacy doubao-video provider with audio model', () => {
+  it('accepts audio models and uses Seed Audio compatibility routing', async () => {
+    const { adapterSupportsKind, runAdapter } = await import('../server/utils/adapters')
+    expect(adapterSupportsKind('doubao-video', 'audio')).toBe(true)
+    expect(adapterSupportsKind('doubao-video', 'video')).toBe(true)
+
+    const fetchMock = vi.fn().mockResolvedValue({ code: 20000000, url: 'https://example.com/audio.wav' })
+    vi.stubGlobal('$fetch', fetchMock)
+    const result = await runAdapter('doubao-video', {
+      baseUrl: 'https://openspeech.bytedance.com',
+      apiKey: 'test-key',
+      modelId: 'seed-audio-1.0',
+      kind: 'audio',
+      prompt: 'hello',
+      params: {},
+      refs: { image: [], video: [], audio: [] },
+    })
+    expect(result.status).toBe('succeeded')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://openspeech.bytedance.com/api/v3/tts/create',
+      expect.objectContaining({ headers: expect.objectContaining({ 'X-Api-Key': 'test-key' }) }),
+    )
+    vi.unstubAllGlobals()
+  })
+})
+
 describe('sanitizeAudioResponsePayload', () => {
   it('truncates very long audio base64 strings', async () => {
     const { sanitizeAudioResponsePayload } = await import('../server/utils/adapters')

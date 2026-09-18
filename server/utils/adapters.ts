@@ -821,7 +821,10 @@ export function sanitizeAudioResponsePayload(resp: any): any {
 }
 
 export function adapterSupportsKind(format: ApiFormat, kind: ModelKind): boolean {
-  if (format === 'doubao-video') return kind === 'video' || kind === 'image'
+  // 火山同一平台经常同时配置 Seedance 和 Seed Audio 模型。历史上这类
+  // provider 可能仍保存为 doubao-video，因此兼容 audio 模型并走 Seed Audio
+  // 的 /api/v3/tts/create 请求，而不把任务直接判为不支持。
+  if (format === 'doubao-video') return kind === 'video' || kind === 'image' || kind === 'audio'
   if (format === 'xai-image') return kind === 'image'
   if (format === 'seed-audio') return kind === 'audio'
   return true
@@ -849,6 +852,10 @@ export async function runAdapter(format: ApiFormat, ctx: AdapterContext): Promis
     if (ctx.kind === 'image') {
       const payload = buildRequestPayload('doubao-video', ctx)
       return runPreparedSyncTask({ format: 'doubao-video', baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: ctx.kind, payload })
+    }
+    if (ctx.kind === 'audio') {
+      const payload = buildRequestPayload('seed-audio', ctx)
+      return runPreparedSyncTask({ format: 'seed-audio', baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: ctx.kind, payload })
     }
     return runDoubaoVideo(ctx)
   }

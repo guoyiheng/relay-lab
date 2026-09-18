@@ -256,7 +256,7 @@ export async function handleTaskMessage(
   const payload = row.request_payload ? JSON.parse(row.request_payload) : {}
 
   if (msg.phase === 'run-sync') {
-    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url' || (format === 'doubao-video' && kind === 'image') || format === 'seed-audio'
+    const isSyncFormat = format === 'openai-sync' || format === 'xai-image' || format === 'full-url' || (format === 'doubao-video' && (kind === 'image' || kind === 'audio')) || format === 'seed-audio'
     if (kind !== 'text' && (!isSyncFormat || !adapterSupportsKind(format, kind))) {
       await persistTerminal(msg.taskId, {
         status: 'failed', request_payload: payload, response_payload: null, result_urls: [],
@@ -265,8 +265,11 @@ export async function handleTaskMessage(
       return null
     }
     const startedAt = Date.now()
+    // 兼容旧配置：doubao-video provider 下的 audio 模型实际使用 Seed Audio
+    // 协议，必须切换鉴权头和 tts/create endpoint。
+    const preparedFormat = format === 'doubao-video' && kind === 'audio' ? 'seed-audio' : format
     const result = await runPreparedSyncTask({
-      format,
+      format: preparedFormat,
       baseUrl: provider.base_url,
       apiKey,
       kind,

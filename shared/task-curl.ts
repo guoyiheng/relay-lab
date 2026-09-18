@@ -31,6 +31,11 @@ export function taskEndpoint(
     if (task.kind === 'image') {
       return { method: 'POST', url: joinUrl(baseUrl, 'images/generations') }
     }
+    if (task.kind === 'audio') {
+      const clean = baseUrl.replace(/\/+$/, '')
+      const path = clean.endsWith('/api/v3') ? 'tts/create' : 'api/v3/tts/create'
+      return { method: 'POST', url: joinUrl(baseUrl, path) }
+    }
     return { method: 'POST', url: joinUrl(baseUrl, 'contents/generations/tasks') }
   }
   if (task.api_format === 'openai-async') {
