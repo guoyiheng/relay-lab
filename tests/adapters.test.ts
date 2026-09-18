@@ -93,6 +93,28 @@ describe('interpretPoll for doubao-video', () => {
   })
 })
 
+describe('video duration normalization', () => {
+  const baseCtx: AdapterContext = {
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    apiKey: 'test-key',
+    modelId: 'ep-test-video',
+    kind: 'video',
+    prompt: 'A cinematic shot',
+    params: { duration: 30 },
+    refs: { image: [], video: [], audio: [] },
+  }
+
+  it('allows 30 seconds for Seedance video', () => {
+    const payload = buildRequestPayload('doubao-video', baseCtx)
+    expect(payload.duration).toBe(30)
+  })
+
+  it('clamps invalid Seedance duration into the 4-30 second range', () => {
+    const payload = buildRequestPayload('doubao-video', { ...baseCtx, params: { duration: 2 } })
+    expect(payload.duration).toBe(4)
+  })
+})
+
 describe('buildRequestPayload for seed-audio', () => {
   const baseCtx: AdapterContext = {
     baseUrl: 'https://openspeech.bytedance.com',

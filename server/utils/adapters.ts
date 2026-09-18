@@ -86,6 +86,11 @@ function maxPollMs(kind: ModelKind): number {
   return kind === 'video' ? VIDEO_MAX_MS : IMAGE_MAX_MS
 }
 
+function normalizeVideoDuration(value: unknown, fallback = 6): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.min(30, Math.max(4, n)) : fallback
+}
+
 // Poll interval by ceiling: video polls slower (5s) since it runs for minutes;
 // image/other poll faster (2s) to surface quick results promptly.
 const VIDEO_POLL_GAP_MS = 5000
@@ -472,7 +477,7 @@ async function runDoubaoVideo(ctx: AdapterContext): Promise<AdapterResult> {
 
   const ratio = (ctx.params.ratio as string) || '9:16'
   const resolution = (ctx.params.resolution as string) || '480p'
-  const duration = Number(ctx.params.duration) || 6
+  const duration = normalizeVideoDuration(ctx.params.duration)
   const generate_audio = ctx.params.generate_audio !== undefined ? !!ctx.params.generate_audio : true
   const extra = { ...ctx.params }
   // use_asset_library 是内部标志（是否把参考素材走 Seedance 素材库），不外发上游。
@@ -744,7 +749,7 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
     }
     const ratio = (ctx.params.ratio as string) || '9:16'
     const resolution = (ctx.params.resolution as string) || '480p'
-    const duration = Number(ctx.params.duration) || 6
+    const duration = normalizeVideoDuration(ctx.params.duration)
     const generate_audio = ctx.params.generate_audio !== undefined ? !!ctx.params.generate_audio : true
     const extra = { ...ctx.params }
     for (const k of ['ratio', 'resolution', 'duration', 'generate_audio', 'watermark', 'seed', 'return_last_frame', 'use_asset_library']) {
@@ -794,6 +799,9 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
   delete (cleanParams as any).ratio
   delete (cleanParams as any).image_resolution
   if (format === 'openai-async') delete (cleanParams as any).webhook
+  if (ctx.kind === 'video' && cleanParams.duration !== undefined) {
+    cleanParams.duration = normalizeVideoDuration(cleanParams.duration)
+  }
   const refImages = ctx.kind === 'image' ? collectImageRefs(ctx) : []
   return {
     model: ctx.modelId,

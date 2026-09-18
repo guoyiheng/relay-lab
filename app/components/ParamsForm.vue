@@ -67,7 +67,7 @@ const VIDEO_RESOLUTIONS = ['480p', '720p', '1080p'] as const
 // 1K = 1920x1080, 2K = 2560x1440, 4K = 3840x2160 (longest side anchor).
 // Other ratios are computed against this longest side.
 const IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const
-const DURATIONS = [4, 5, 6, 8, 10, 12, 15]
+const DURATIONS = Array.from({ length: 27 }, (_, i) => i + 4)
 
 function patch(updates: Record<string, unknown>) {
   emit('update:modelValue', { ...props.modelValue, ...updates })
@@ -161,7 +161,8 @@ const hasAnyRef = computed(() => props.refs.image.length + props.refs.video.leng
 function setCustomNumber(key: string, raw: string) {
   const trimmed = raw.trim()
   if (!trimmed) return clearKey(key)
-  patch({ [key]: Number(trimmed) })
+  const value = Number(trimmed)
+  patch({ [key]: key === 'duration' && Number.isFinite(value) ? Math.min(30, Math.max(4, value)) : value })
 }
 
 // ---------- OpenAI image: ratio × resolution → pixel size ----------
@@ -393,6 +394,8 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
           :model-value="String(duration)"
           type="number"
           size="sm"
+          min="4"
+          max="30"
          
           @update:model-value="(v: string) => setCustomNumber('duration', v)"
         />
