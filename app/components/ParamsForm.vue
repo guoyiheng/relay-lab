@@ -67,7 +67,8 @@ const VIDEO_RESOLUTIONS = ['480p', '720p', '1080p'] as const
 // 1K = 1920x1080, 2K = 2560x1440, 4K = 3840x2160 (longest side anchor).
 // Other ratios are computed against this longest side.
 const IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const
-const DURATIONS = Array.from({ length: 27 }, (_, i) => i + 4)
+// 常用时长快捷选项；其余 4–30 秒通过右侧输入框自定义。
+const DURATIONS = [5, 10, 15, 20, 30]
 
 function patch(updates: Record<string, unknown>) {
   emit('update:modelValue', { ...props.modelValue, ...updates })
@@ -149,6 +150,16 @@ const imageResolution = computed(() => {
   return '1K'
 })
 const duration = computed(() => Number(props.modelValue.duration ?? 6))
+const durationDraft = ref(String(duration.value))
+watch(duration, (value) => { durationDraft.value = String(value) })
+function commitDuration() {
+  const parsed = Number(durationDraft.value)
+  const value = durationDraft.value.trim() && Number.isFinite(parsed)
+    ? Math.min(30, Math.max(4, Math.round(parsed)))
+    : duration.value
+  durationDraft.value = String(value)
+  patch({ duration: value })
+}
 const size = computed(() => String(props.modelValue.size ?? ''))
 const n = computed(() => Number(props.modelValue.n ?? 1))
 const generateAudio = computed(() => props.modelValue.generate_audio !== false)
@@ -245,7 +256,7 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
       </div>
       <div>
         <div class="field-label">时长</div>
-        <div class="flex flex-wrap gap-1.5">
+        <div class="flex flex-wrap items-center gap-1.5">
           <button
             v-for="d in DURATIONS"
             :key="d"
@@ -256,6 +267,22 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
               : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
             @click="patch({ duration: d })"
           >{{ d }}s</button>
+          <label class="inline-flex items-center gap-1.5 text-[12px] text-[var(--c-fg-3)]">
+            <span>自定义</span>
+            <UInput
+              :model-value="durationDraft"
+              type="number"
+              min="4"
+              max="30"
+              step="1"
+              size="sm"
+              class="w-20"
+              @update:model-value="(v: string) => { durationDraft = v }"
+              @change="commitDuration"
+              @keydown.enter="commitDuration"
+            />
+            <span>秒</span>
+          </label>
         </div>
       </div>
       <div>
