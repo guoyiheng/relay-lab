@@ -587,16 +587,8 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
                     />
                   </button>
                 </div>
-                <div v-if="r.seedance_asset_id && !preview" class="mt-1 flex items-center justify-between gap-1">
+                <div v-if="r.seedance_asset_id && !preview" class="mt-1 flex items-center gap-1">
                   <span class="truncate font-mono text-[10px] text-[var(--c-fg-4)]" :title="r.seedance_asset_id">{{ r.seedance_asset_id }}</span>
-                  <button
-                    type="button"
-                    class="text-[10px] text-red-500 hover:underline flex-shrink-0"
-                    :disabled="deletingAssetId === r.asset_id"
-                    @click="handleDeleteRemoteAsset(r)"
-                  >
-                    删除
-                  </button>
                 </div>
               </div>
             </div>
@@ -634,16 +626,8 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
                     />
                   </button>
                 </div>
-                <div v-if="r.seedance_asset_id && !preview" class="mt-1 flex items-center justify-between gap-1">
+                <div v-if="r.seedance_asset_id && !preview" class="mt-1 flex items-center gap-1">
                   <span class="truncate font-mono text-[10px] text-[var(--c-fg-4)]" :title="r.seedance_asset_id">{{ r.seedance_asset_id }}</span>
-                  <button
-                    type="button"
-                    class="text-[10px] text-red-500 hover:underline flex-shrink-0"
-                    :disabled="deletingAssetId === r.asset_id"
-                    @click="handleDeleteRemoteAsset(r)"
-                  >
-                    删除
-                  </button>
                 </div>
               </div>
             </div>
@@ -654,7 +638,7 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
               <div
                 v-for="r in task.refs.audio"
                 :key="r.asset_id"
-                class="flex items-center gap-2 rounded-[4px] border border-[var(--c-border)] px-2.5 py-1.5"
+                class="group relative flex items-center gap-2 rounded-[4px] border border-[var(--c-border)] px-2.5 py-1.5"
               >
                 <UIcon name="i-carbon-music" class="h-4 w-4 flex-shrink-0 text-[var(--c-fg-4)]" />
                 <span class="w-24 flex-shrink-0 truncate text-[12px] text-[var(--c-fg)]">{{ r.filename || r.asset_id }}</span>
@@ -663,7 +647,7 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
                 <button
                   v-if="r.seedance_asset_id && !preview"
                   type="button"
-                  class="pill-btn text-red-500 hover:text-red-600"
+                  class="absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded bg-black/60 text-white/90 opacity-0 transition group-hover:opacity-100 hover:bg-red-600 hover:text-white"
                   :disabled="deletingAssetId === r.asset_id"
                   title="从火山方舟素材库删除远端素材"
                   @click="handleDeleteRemoteAsset(r)"
@@ -673,7 +657,6 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
                     class="h-3.5 w-3.5"
                     :class="{ 'animate-spin': deletingAssetId === r.asset_id }"
                   />
-                  删除远端
                 </button>
               </div>
             </div>

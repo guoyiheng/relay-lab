@@ -12,6 +12,7 @@ export interface UploadItem {
   file?: File           // present only for pending local files
   pending?: boolean
   sig?: string          // dedup signature (name|size|lastModified or url)
+  trimSeconds?: number | null // optional preview clip length for video/audio references
 }
 
 interface RefsState {
@@ -51,6 +52,7 @@ const emit = defineEmits<{
 const fileInput = ref<HTMLInputElement | null>(null)
 const error = ref<string | null>(null)
 const dragOver = ref(false)
+const { open: openFullscreen } = useFullscreenViewer()
 
 const totalUsed = computed(
   () => props.modelValue.image.length + props.modelValue.video.length + props.modelValue.audio.length,
@@ -175,6 +177,25 @@ function remove(item: UploadItem) {
     image: filterK(props.modelValue.image),
     video: filterK(props.modelValue.video),
     audio: filterK(props.modelValue.audio),
+  })
+}
+
+function setTrimSeconds(item: UploadItem, seconds: number | null) {
+  const next = {
+    image: [...props.modelValue.image],
+    video: [...props.modelValue.video],
+    audio: [...props.modelValue.audio],
+  }
+  const list = next[item.kind]
+  const found = list.find((candidate) => isSameRef(candidate, item))
+  if (found) found.trimSeconds = seconds
+  emit('update:modelValue', next)
+}
+
+function preview(item: UploadItem) {
+  openFullscreen(item.public_url, item.kind, {
+    trimSeconds: item.kind === 'image' ? null : item.trimSeconds,
+    onTrim: item.kind === 'image' ? undefined : (seconds) => setTrimSeconds(item, seconds),
   })
 }
 
@@ -347,8 +368,18 @@ function onPaste(e: ClipboardEvent) {
           <UIcon name="i-carbon-music" class="h-5 w-5 text-[var(--c-fg-4)]" />
           <span class="truncate text-[9px] text-[var(--c-fg-4)]">{{ item.filename }}</span>
         </div>
+        <button
+          type="button"
+          class="absolute inset-0 z-[5] grid place-items-center bg-black/20 text-white opacity-0 transition group-hover:opacity-100 focus:opacity-100"
+          :aria-label="`预览 ${item.filename || item.id}`"
+          @click.stop="preview(item)"
+        >
+          <span class="grid h-9 w-9 place-items-center rounded-full bg-black/60 shadow-lg transition hover:scale-105 hover:bg-black/75">
+            <UIcon name="i-carbon-zoom-in" class="h-5 w-5" />
+          </span>
+        </button>
         <button type="button"
-          class="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80 group-hover:flex"
+          class="absolute right-1 top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80 group-hover:flex"
           :aria-label="`移除 ${item.filename || item.id}`" @click="remove(item)">
           <UIcon name="i-carbon-close" class="h-3 w-3" />
         </button>

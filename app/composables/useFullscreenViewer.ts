@@ -7,17 +7,28 @@
 interface FullscreenState {
   url: string | null
   kind: 'image' | 'video' | 'audio'
+  trimSeconds: number | null
+  onTrim?: (seconds: number | null) => void
 }
 
-const state = reactive<FullscreenState>({ url: null, kind: 'image' })
+const state = reactive<FullscreenState>({ url: null, kind: 'image', trimSeconds: null })
+
+export interface FullscreenOpenOptions {
+  trimSeconds?: number | null
+  onTrim?: (seconds: number | null) => void
+}
 
 export function useFullscreenViewer() {
-  function open(url: string, kind: 'image' | 'video' | 'audio' = 'image') {
+  function open(url: string, kind: 'image' | 'video' | 'audio' = 'image', options: FullscreenOpenOptions = {}) {
     state.url = url
     state.kind = kind
+    state.trimSeconds = options.trimSeconds ?? null
+    state.onTrim = options.onTrim
   }
   function close() {
     state.url = null
+    state.trimSeconds = null
+    state.onTrim = undefined
   }
   return { state, open, close }
 }
