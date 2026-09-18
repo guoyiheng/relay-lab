@@ -3,6 +3,7 @@
 // 对外以 PromptSegment[] 结构双向绑定，把纯文本与素材引用统一表达。
 import type { PickerAsset, PromptSegment } from '~~/types/api'
 import { usePromptFavorites } from '~/composables/usePromptFavorites'
+import { detectTriggerToken } from '~~/shared/prompt-trigger'
 
 interface RefChip {
   id: string
@@ -532,18 +533,20 @@ function detectTrigger() {
   if (!cur || cur.node.nodeType !== Node.TEXT_NODE) { closePopover(); return }
   const textNode = cur.node as Text
   const upto = textNode.data.slice(0, cur.offset)
-  const m = upto.match(/([@/])([^\s@/]*)$/)
-  if (!m) { closePopover(); return }
-  const ch = m[1]
-  if (ch === '@' && !props.allowKinds.length) { closePopover(); return }
-  trigger.value = ch === '@' ? 'asset' : 'fav'
+  const match = detectTriggerToken(upto, props.allowKinds.length > 0)
+  if (!match) { closePopover(); return }
+
+  trigger.value = match.type
   triggerNode = textNode
-  triggerStartOffset = cur.offset - m[0].length
+  triggerStartOffset = cur.offset - match.tokenLen
   triggerEndOffset = cur.offset
-  query.value = m[2] || ''
+  query.value = match.query
   activeIndex.value = 0
   visibleCount.value = PAGE
-  if (trigger.value === 'asset') { listVersion.value++; void ensureAssets() }
+  if (trigger.value === 'asset') {
+    listVersion.value++
+    void ensureAssets()
+  }
 }
 
 function closePopover() {
@@ -706,6 +709,8 @@ function onListScroll(e: Event) {
   }
 }
 // ── event handlers ────────────────────────────────────────────
+let isPasting = false
+
 function onInput(e: Event) {
   // During IME composition, the DOM contains uncommitted preedit text.
   // Syncing now would emit partial pinyin as the modelValue, and the
@@ -715,6 +720,16 @@ function onInput(e: Event) {
   // Check both our flag AND the native InputEvent.isComposing for robustness
   // (event ordering between compositionend and input varies by browser).
   if (isComposing.value || (e instanceof InputEvent && e.isComposing)) return
+
+  // 粘贴/拖拽内容是批量置入已有文本，绝不应触发 @ 或 / 弹窗。
+  if (isPasting || (e instanceof InputEvent && (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop'))) {
+    clearOverflowMarks()
+    syncFromDom()
+    refreshOverflow()
+    closePopover()
+    return
+  }
+
   // Strip stale overflow wrappers before serializing so text stays clean,
   // then re-apply the highlight (caret-preserving) after.
   clearOverflowMarks()
@@ -737,8 +752,10 @@ function onCompositionEnd() {
     clearOverflowMarks()
     syncFromDom()
     refreshOverflow()
-    detectTrigger()
-    if (showPopover.value) updatePopoverPos()
+    if (!isPasting) {
+      detectTrigger()
+      if (showPopover.value) updatePopoverPos()
+    }
   })
 }
 
@@ -789,8 +806,18 @@ function insertText(t: string) {
 
 function onPaste(e: ClipboardEvent) {
   e.preventDefault()
+  closePopover()
   const text = e.clipboardData?.getData('text/plain') || ''
-  if (text) insertText(text)
+  if (!text) return
+  isPasting = true
+  try {
+    insertText(text)
+  } finally {
+    nextTick(() => {
+      isPasting = false
+      closePopover()
+    })
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
