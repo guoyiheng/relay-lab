@@ -131,12 +131,13 @@ describe('buildRequestPayload for seed-audio', () => {
     expect(payload.model).toBe('seed-audio-1.0')
     expect(payload.text_prompt).toBe('Hello world speech')
     expect(payload.audio_config).toEqual({
-      format: 'wav',
-      sample_rate: 40000,
+      format: 'mp3',
+      sample_rate: 48000,
       pitch_rate: 0,
       speech_rate: 0,
       loudness_rate: 0,
     })
+    expect(payload.watermark).toEqual({})
     expect(payload.references).toBeUndefined()
   })
 
@@ -158,6 +159,30 @@ describe('buildRequestPayload for seed-audio', () => {
     ])
   })
 
+  it('puts speaker ids in references as required by Seed Audio', () => {
+    const payload = buildRequestPayload('seed-audio', {
+      ...baseCtx,
+      params: { speaker: 'speaker_123' },
+    })
+    expect(payload.references).toEqual([{ speaker: 'speaker_123' }])
+    expect(payload.speaker).toBeUndefined()
+  })
+
+  it('matches the supplied nested JSON request and keeps watermark disabled', () => {
+    const audio_config = { format: 'mp3', sample_rate: 48000, pitch_rate: 0, speech_rate: 0, loudness_rate: 0 }
+    const payload = buildRequestPayload('seed-audio', {
+      ...baseCtx,
+      params: { references: [{ speaker: 'speaker_123' }], audio_config, watermark: { aigc_watermark: true } },
+    })
+    expect(payload).toEqual({
+      model: baseCtx.modelId,
+      text_prompt: baseCtx.prompt,
+      references: [{ speaker: 'speaker_123' }],
+      audio_config,
+      watermark: {},
+    })
+  })
+
   it('passes image reference when provided', () => {
     const payload = buildRequestPayload('seed-audio', {
       ...baseCtx,
@@ -170,6 +195,19 @@ describe('buildRequestPayload for seed-audio', () => {
     expect(payload.references).toEqual([
       { image_url: 'https://example.com/ref.jpg' },
     ])
+  })
+
+  it('uses speaker reference when speaker and media are both filled', () => {
+    const payload = buildRequestPayload('seed-audio', {
+      ...baseCtx,
+      params: { speaker: 'speaker_123' },
+      refs: {
+        image: [],
+        video: [],
+        audio: [{ kind: 'audio', public_url: 'https://example.com/ref.mp3' }],
+      },
+    })
+    expect(payload.references).toEqual([{ speaker: 'speaker_123' }])
   })
 
   it('normalizes format-specific sample rates', () => {

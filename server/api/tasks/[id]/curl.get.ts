@@ -42,9 +42,22 @@ export default defineEventHandler(async (event) => {
     } catch { /* fall back to provider key */ }
   }
   const bodyJson = row.request_payload || '{}'
-  const authHeader = row.api_format === 'seed-audio'
-    ? `-H ${shellSingleQuote(`X-Api-Key: ${apiKey}`)} \\`
-    : `-H ${shellSingleQuote(`Authorization: Bearer ${apiKey}`)} \\`
+  const isSeedAudio = row.api_format === 'seed-audio' || (row.api_format === 'doubao-video' && row.kind === 'audio')
+  if (isSeedAudio) {
+    return {
+      curl: [
+        `curl --request ${ep.method} \\`,
+        `--url ${shellSingleQuote(ep.url)} \\`,
+        '--max-time 300 \\',
+        "--header 'Content-Type: application/json' \\",
+        `--header ${shellSingleQuote(`X-Api-Key: ${apiKey}`)} \\`,
+        `--data-raw ${shellSingleQuote(bodyJson)} \\`,
+        '| python3 -m json.tool',
+      ].join('\n'),
+      endpoint: ep,
+    }
+  }
+  const authHeader = `-H ${shellSingleQuote(`Authorization: Bearer ${apiKey}`)} \\`
   const curl = [
     `curl -X ${ep.method} ${shellSingleQuote(ep.url)} \\`,
     `  -H 'Content-Type: application/json' \\`,

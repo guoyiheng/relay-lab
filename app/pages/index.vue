@@ -6,6 +6,7 @@ import type { Provider, Model, TaskRow, ApiFormat, ModelKind, PromptSegment } fr
 import { useProvidersStore } from '~/stores/providers'
 import { useTasksStore } from '~/stores/tasks'
 import { trackButtonClick } from '~/composables/useAnalytics'
+import { seedAudioConfig, seedAudioParams } from '~~/shared/seed-audio'
 
 interface ProviderWithModels extends Provider {
   models: Model[]
@@ -222,27 +223,18 @@ function buildPreviewParams(pIn: Record<string, unknown>): Record<string, unknow
   }
 
   if (apiFormat.value === 'seed-audio' || kind.value === 'audio') {
-    const base = { ...p }
-    const audio_config: Record<string, unknown> = {
-      format: String(base.format || 'wav'),
-      sample_rate: Number(base.sample_rate || (String(base.format || 'wav') === 'mp3' ? 44100 : String(base.format || 'wav') === 'ogg_opus' ? 48000 : 40000)),
-      speech_rate: Number(base.speech_rate ?? 0),
-      pitch_rate: Number(base.pitch_rate ?? 0),
-      loudness_rate: Number(base.loudness_rate ?? 0),
-    }
-    if (base.enable_subtitle !== undefined) {
-      audio_config.enable_subtitle = !!base.enable_subtitle
-    }
+    const base = seedAudioParams(p)
+    const audio_config = seedAudioConfig(p)
     const out: Record<string, unknown> = {
       audio_config,
+      watermark: {},
     }
-    if (rAud.length > 0) {
+    if (base.speaker && String(base.speaker).trim()) {
+      out.references = [{ speaker: String(base.speaker).trim() }]
+    } else if (rAud.length > 0) {
       out.references = rAud.slice(0, 3).map((url) => ({ audio_url: url }))
     } else if (rImg.length > 0) {
       out.references = [{ image_url: rImg[0] }]
-    }
-    if (base.speaker && String(base.speaker).trim()) {
-      out.speaker = String(base.speaker).trim()
     }
     return out
   }

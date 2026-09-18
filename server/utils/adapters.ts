@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import type { ApiFormat, ModelKind } from '~~/types/api'
 import { taskEndpoint } from '~~/shared/task-curl'
+import { seedAudioConfig, seedAudioParams } from '~~/shared/seed-audio'
 
 export interface ReferenceAsset {
   kind: 'image' | 'video' | 'audio'
@@ -672,44 +673,26 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
     }
   }
   if (format === 'seed-audio' || ctx.kind === 'audio') {
-    const cleanParams = { ...ctx.params }
-    const audioFormat = ['wav', 'mp3', 'pcm', 'ogg_opus'].includes(String(cleanParams.format))
-      ? String(cleanParams.format)
-      : 'wav'
-    const defaultSampleRate = audioFormat === 'mp3' ? 44100 : audioFormat === 'ogg_opus' ? 48000 : 40000
-    const validSampleRates = audioFormat === 'ogg_opus'
-      ? [48000]
-      : audioFormat === 'mp3'
-        ? [8000, 16000, 24000, 32000, 44100, 48000]
-        : [8000, 16000, 24000, 32000, 40000, 44100, 48000]
-    const requestedSampleRate = Number(cleanParams.sample_rate)
-    const audio_config: Record<string, unknown> = {
-      format: audioFormat,
-      sample_rate: validSampleRates.includes(requestedSampleRate) ? requestedSampleRate : defaultSampleRate,
-      speech_rate: Number(cleanParams.speech_rate ?? 0),
-      pitch_rate: Number(cleanParams.pitch_rate ?? 0),
-      loudness_rate: Number(cleanParams.loudness_rate ?? 0),
-    }
-    if (cleanParams.enable_subtitle !== undefined) {
-      audio_config.enable_subtitle = !!cleanParams.enable_subtitle
-    }
+    const cleanParams = seedAudioParams(ctx.params)
+    const audio_config = seedAudioConfig(ctx.params)
 
     const payload: Record<string, unknown> = {
       model: ctx.modelId,
       text_prompt: ctx.prompt,
       audio_config,
-    }
-
-    const refAudios = ctx.refs?.audio || []
-    const refImages = ctx.refs?.image || []
-    if (refAudios.length > 0) {
-      payload.references = refAudios.slice(0, 3).map((r) => ({ audio_url: r.public_url }))
-    } else if (refImages[0]) {
-      payload.references = [{ image_url: refImages[0].public_url }]
+      watermark: {},
     }
 
     if (cleanParams.speaker && String(cleanParams.speaker).trim()) {
-      payload.speaker = String(cleanParams.speaker).trim()
+      payload.references = [{ speaker: String(cleanParams.speaker).trim() }]
+    } else {
+      const refAudios = ctx.refs?.audio || []
+      const refImages = ctx.refs?.image || []
+      if (refAudios.length > 0) {
+        payload.references = refAudios.slice(0, 3).map((r) => ({ audio_url: r.public_url }))
+      } else if (refImages[0]) {
+        payload.references = [{ image_url: refImages[0].public_url }]
+      }
     }
     return payload
   }
