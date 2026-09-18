@@ -95,7 +95,7 @@ export async function persistTerminal(taskId: number, r: AdapterResult, latencyM
       `UPDATE tasks SET
          status = ?, http_status = ?, latency_ms = ?,
          response_payload = ?, result_urls = ?, result_text = ?,
-         remote_task_id = ?, error_message = ?, updated_at = ?, finished_at = ?
+         remote_task_id = COALESCE(?, remote_task_id), error_message = ?, updated_at = ?, finished_at = ?
        WHERE id = ? AND user_id = ?`,
     ).run(
       r.status,
@@ -114,6 +114,15 @@ export async function persistTerminal(taskId: number, r: AdapterResult, latencyM
   } catch (err) {
     console.error(`[taskrunner] persist terminal for #${taskId} failed:`, err)
   }
+}
+
+// 上游返回远程任务 ID 后立即单独落库，后续响应快照或终态写回不能覆盖它。
+export async function persistRemoteTaskId(taskId: number, userId: number, remoteTaskId: string): Promise<void> {
+  const id = remoteTaskId.trim()
+  if (!id) return
+  await useDb().prepare(
+    'UPDATE tasks SET remote_task_id = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+  ).run(id, Date.now(), taskId, userId)
 }
 
 // 起一个任务：生产只要有 Queue 就入队；异步协议走 submit/poll，同步协议走 run-sync。
@@ -174,9 +183,10 @@ async function runInProcess(
       kind,
       onCreated: async ({ remote_task_id, response_payload }) => {
         try {
+          if (remote_task_id) await persistRemoteTaskId(taskId, userId, remote_task_id)
           await useDb().prepare(
-            `UPDATE tasks SET response_payload = ?, remote_task_id = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
-          ).run(JSON.stringify(response_payload ?? null), remote_task_id || null, Date.now(), taskId, userId)
+            `UPDATE tasks SET response_payload = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+          ).run(JSON.stringify(response_payload ?? null), Date.now(), taskId, userId)
         } catch (err) { console.error(`[taskrunner] onCreated persist #${taskId}:`, err) }
       },
     })
@@ -319,10 +329,11 @@ export async function handleTaskMessage(
       await persistTerminal(msg.taskId, { status: 'failed', http_status: sub.http_status, request_payload: payload, response_payload: sub.submitResp, result_urls: [], error_message: sub.error_message }, null)
       return null
     }
-    // 落库 submit 响应 + remote_task_id（UI 响应 tab 立即可见）。
+    // 先落库 remote_task_id，再落库 submit 响应；拿到 ID 后立即可手动查询。
     try {
-      await db.prepare('UPDATE tasks SET response_payload = ?, remote_task_id = ?, updated_at = ? WHERE id = ? AND user_id = ?')
-        .run(JSON.stringify({ submit: sub.submitResp, poll_url: sub.pollUrl, polls: [] }), sub.taskId || null, Date.now(), msg.taskId, row.user_id)
+      if (sub.taskId) await persistRemoteTaskId(msg.taskId, row.user_id, sub.taskId)
+      await db.prepare('UPDATE tasks SET response_payload = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+        .run(JSON.stringify({ submit: sub.submitResp, poll_url: sub.pollUrl, polls: [] }), Date.now(), msg.taskId, row.user_id)
     } catch (err) { console.error(`[taskrunner] submit persist #${msg.taskId}:`, err) }
     return { next: { taskId: msg.taskId, phase: 'poll', startedAt: Date.now(), pollUrl: sub.pollUrl }, delaySeconds: gapSecFor(kind) }
   }
