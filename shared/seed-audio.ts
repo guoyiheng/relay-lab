@@ -25,3 +25,22 @@ export function seedAudioConfig(params: Record<string, unknown>): Record<string,
   if (p.enable_subtitle !== undefined) result.enable_subtitle = !!p.enable_subtitle
   return result
 }
+
+/** 概览优先展示实际请求配置；列表预览没有请求快照时补齐音频默认值。 */
+export function seedAudioOverviewParams(params: Record<string, unknown>, requestPayload: unknown): Record<string, unknown> {
+  const request = requestPayload && typeof requestPayload === 'object' && !Array.isArray(requestPayload)
+    ? requestPayload as Record<string, unknown> : null
+  if (request) {
+    const { model, text_prompt, audio_config, ...rest } = request
+    const config = audio_config && typeof audio_config === 'object' && !Array.isArray(audio_config)
+      ? audio_config as Record<string, unknown> : {}
+    return { ...config, ...rest }
+  }
+  const p = seedAudioParams(params)
+  const speaker = typeof p.speaker === 'string' ? p.speaker.trim() : ''
+  return {
+    ...seedAudioConfig(params),
+    watermark: {},
+    ...(speaker ? { references: [{ speaker }] } : {}),
+  }
+}

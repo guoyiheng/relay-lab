@@ -3,6 +3,7 @@
 // 也做预览模式（任务列表 hover 卡）的只读精简版。分析结果轮询回传由父层写回 store。
 import type { TaskRow } from '~~/types/api'
 import { taskEndpoint } from '~~/shared/task-curl'
+import { seedAudioOverviewParams } from '~~/shared/seed-audio'
 import { usePromptFavorites } from '~/composables/usePromptFavorites'
 
 const props = defineProps<{ task: TaskRow; mode: 'overview' | 'network'; preview?: boolean }>()
@@ -203,7 +204,11 @@ const queueWaitMs = computed(() => {
   return total - props.task.latency_ms
 })
 
-const paramEntries = computed(() => Object.entries(props.task.params || {}))
+const paramEntries = computed(() => Object.entries(
+  props.task.kind === 'audio'
+    ? seedAudioOverviewParams(props.task.params || {}, props.task.request_payload)
+    : props.task.params || {},
+))
 const totalRefs = computed(() => {
   const r = props.task.refs
   if (!r) return 0
