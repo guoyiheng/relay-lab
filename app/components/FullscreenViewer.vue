@@ -63,12 +63,26 @@ function emitSelection() {
 function setStart(value: number) {
   trimStart.value = Math.max(0, Math.min(value, trimEnd.value - Math.min(0.1, mediaDuration.value)))
   emitSelection()
-  if (mediaEl.value && mediaEl.value.currentTime < trimStart.value) mediaEl.value.currentTime = trimStart.value
+  previewBoundary(trimStart.value)
 }
 function setEnd(value: number) {
   trimEnd.value = Math.min(mediaDuration.value, Math.max(value, trimStart.value + Math.min(0.1, mediaDuration.value)))
   emitSelection()
-  if (mediaEl.value && mediaEl.value.currentTime >= trimEnd.value) mediaEl.value.currentTime = trimStart.value
+  previewBoundary(Math.max(trimStart.value, trimEnd.value - 0.001))
+}
+function previewBoundary(time: number) {
+  if (!mediaEl.value) return
+  mediaEl.value.pause()
+  mediaEl.value.currentTime = time
+  currentTime.value = time
+}
+function setRange(range: { start: number; end: number }) {
+  const startChanged = range.start !== trimStart.value
+  const normalized = normalizeMediaTrim(range.start, range.end, mediaDuration.value)
+  trimStart.value = normalized.start
+  trimEnd.value = normalized.end
+  emitSelection()
+  previewBoundary(startChanged ? trimStart.value : Math.max(trimStart.value, trimEnd.value - 0.001))
 }
 function resetSelection() {
   trimStart.value = 0
@@ -106,7 +120,10 @@ function playSelection() {
   if (!mediaEl.value) return
   if (mediaEl.value.currentTime < trimStart.value || mediaEl.value.currentTime >= trimEnd.value) mediaEl.value.currentTime = trimStart.value
   if (playing.value) mediaEl.value.pause()
-  else void mediaEl.value.play()
+  else {
+    mediaEl.value.currentTime = trimStart.value
+    void mediaEl.value.play()
+  }
 }
 watch(() => [state.url, state.kind] as const, () => {
   cancelClip()
@@ -134,13 +151,13 @@ onBeforeUnmount(() => { cancelClip(); window.removeEventListener('keydown', onKe
         <img v-if="state.kind === 'image'" :key="state.url" :src="state.url" class="max-h-[92vh] max-w-[92vw] rounded-[6px] object-contain shadow-2xl" @click.stop />
         <div v-else-if="state.kind === 'video'" :key="state.url" class="mt-16 flex max-h-[calc(100dvh-5rem)] w-[min(92vw,900px)] flex-col items-center gap-3 overflow-y-auto" @click.stop>
           <video ref="mediaEl" :src="state.url" class="max-h-[48dvh] w-full shrink-0 max-w-[92vw] rounded-[6px] shadow-2xl" controls playsinline @loadedmetadata="onMediaMetadata" @play="onMediaPlay" @pause="onMediaPause" @timeupdate="onMediaTimeUpdate" />
-          <MediaTrimControls v-if="state.onTrim" :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" :processing="processing" :progress="progress" @cancel="cancelClip" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" @apply="clipMedia" />
+          <MediaTrimControls v-if="state.onTrim" :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" :processing="processing" :progress="progress" @cancel="cancelClip" @range="setRange" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" @apply="clipMedia" />
           <p v-if="state.error" role="alert" class="max-w-[560px] text-xs text-red-300">{{ state.error }}</p>
         </div>
         <div v-else :key="state.url" class="mt-16 flex max-h-[calc(100dvh-5rem)] w-[min(90vw,560px)] overflow-y-auto flex-col items-center gap-5 rounded-[10px] bg-white/5 p-8 shadow-2xl" @click.stop>
           <UIcon name="i-carbon-music" class="h-16 w-16 text-white/70" />
           <audio ref="mediaEl" :src="state.url" controls class="w-full" @loadedmetadata="onMediaMetadata" @play="onMediaPlay" @pause="onMediaPause" @timeupdate="onMediaTimeUpdate" />
-          <MediaTrimControls v-if="state.onTrim" :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" :processing="processing" :progress="progress" @cancel="cancelClip" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" @apply="clipMedia" />
+          <MediaTrimControls v-if="state.onTrim" :duration="mediaDuration" :start="trimStart" :end="trimEnd" :current-time="currentTime" :playing="playing" :processing="processing" :progress="progress" @cancel="cancelClip" @range="setRange" @start="setStart" @end="setEnd" @reset="resetSelection" @play="playSelection" @apply="clipMedia" />
           <p v-if="state.error" role="alert" class="w-full text-xs text-red-300">{{ state.error }}</p>
         </div>
       </Transition>
