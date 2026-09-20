@@ -10,6 +10,7 @@ interface FullscreenState {
   trimSeconds: number | null
   trimStartSeconds: number | null
   trimEndSeconds: number | null
+  durationSeconds: number | null
   filename: string | null
   error: string | null
   onTrim?: (selection: { start: number; end: number } | null, file?: File) => void
@@ -21,6 +22,7 @@ const state = reactive<FullscreenState>({
   trimSeconds: null,
   trimStartSeconds: null,
   trimEndSeconds: null,
+  durationSeconds: null,
   filename: null,
   error: null,
 })
@@ -29,6 +31,7 @@ export interface FullscreenOpenOptions {
   trimSeconds?: number | null
   trimStartSeconds?: number | null
   trimEndSeconds?: number | null
+  durationSeconds?: number | null
   filename?: string | null
   onTrim?: (selection: { start: number; end: number } | null, file?: File) => void
 }
@@ -40,6 +43,7 @@ export function useFullscreenViewer() {
     state.trimSeconds = options.trimSeconds ?? null
     state.trimStartSeconds = options.trimStartSeconds ?? null
     state.trimEndSeconds = options.trimEndSeconds ?? options.trimSeconds ?? null
+    state.durationSeconds = options.durationSeconds ?? null
     state.filename = options.filename ?? null
     state.error = null
     state.onTrim = options.onTrim
@@ -49,6 +53,7 @@ export function useFullscreenViewer() {
     state.trimSeconds = null
     state.trimStartSeconds = null
     state.trimEndSeconds = null
+    state.durationSeconds = null
     state.filename = null
     state.error = null
     state.onTrim = undefined

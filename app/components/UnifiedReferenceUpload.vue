@@ -13,6 +13,7 @@ export interface UploadItem {
   pending?: boolean
   sig?: string          // dedup signature (name|size|lastModified or url)
   trimSeconds?: number | null // 兼容旧数据：仅保存结束秒数
+  durationSeconds?: number
   trimStartSeconds?: number | null
   trimEndSeconds?: number | null
 }
@@ -189,21 +190,22 @@ function setTrimSelection(item: UploadItem, selection: { start: number; end: num
     audio: [...props.modelValue.audio],
   }
   const list = next[item.kind]
-  const found = list.find((candidate) => isSameRef(candidate, item))
-  if (found) {
-    if (clippedFile) {
-      if (found.pending && found.public_url.startsWith('blob:')) URL.revokeObjectURL(found.public_url)
-      found.id = ''
-      found.file = clippedFile
-      found.pending = true
-      found.filename = clippedFile.name
-      found.public_url = URL.createObjectURL(clippedFile)
-      found.sig = `file:${clippedFile.name}|${clippedFile.size}|${clippedFile.lastModified}`
+  const index = list.findIndex((candidate) => isSameRef(candidate, item))
+  const found = list[index]
+  if (!found) throw new Error('原参考素材已移除，请重新添加后截取')
+  if (clippedFile) {
+    list[index] = {
+      ...found,
+      id: '', file: clippedFile, pending: true, filename: clippedFile.name,
+      public_url: URL.createObjectURL(clippedFile),
+      // 保留引用标识，使提示词中的 @ 引用指向新文件；清空旧 id 强制上传新文件。
+      sig: canonicalRefSig(found),
+      durationSeconds: selection ? selection.end - selection.start : undefined,
+      trimStartSeconds: null, trimEndSeconds: null, trimSeconds: null,
     }
-    found.trimStartSeconds = selection?.start ?? null
-    found.trimEndSeconds = selection?.end ?? null
-    // 保留旧字段，避免历史状态和下游调用失去兼容。
-    found.trimSeconds = selection?.end ?? null
+    if (found.pending && found.public_url.startsWith('blob:')) URL.revokeObjectURL(found.public_url)
+  } else {
+    list[index] = { ...found, trimStartSeconds: selection?.start ?? null, trimEndSeconds: selection?.end ?? null, trimSeconds: selection?.end ?? null }
   }
   emit('update:modelValue', next)
 }
@@ -214,6 +216,7 @@ function preview(item: UploadItem) {
     trimStartSeconds: item.kind === 'image' ? null : item.trimStartSeconds,
     trimEndSeconds: item.kind === 'image' ? null : (item.trimEndSeconds ?? item.trimSeconds),
     filename: item.filename,
+    durationSeconds: item.durationSeconds,
     onTrim: item.kind === 'image' ? undefined : (selection, clippedFile) => setTrimSelection(item, selection, clippedFile),
   })
 }
