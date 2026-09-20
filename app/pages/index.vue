@@ -101,8 +101,13 @@ function selectTask(id: number) {
 // List/poll responses omit request/response payloads. Hydrate the complete row
 // whenever a detail tab needs it; this also covers a freshly submitted task
 // whose initial payload was later followed by a lightweight polling summary.
-watch([activeId, detailTab], ([id, tab]) => {
-  if (!id || tab === 'preview' || tasksStore.detailById(id)?.refs !== undefined) return
+watch([
+  activeId,
+  detailTab,
+  () => tasks.value.find((t) => t.id === activeId.value)?.updated_at,
+  () => tasks.value.find((t) => t.id === activeId.value)?.status,
+], ([id, tab]) => {
+  if (!id || tab === 'preview') return
   void tasksStore.loadDetail(id).catch((err: any) => {
     notify.error(err?.data?.statusMessage || err?.statusMessage || err?.message || '任务详情加载失败，请稍后重试')
   })

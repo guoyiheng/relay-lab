@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { TaskRow } from '~~/types/api'
 
 const TERMINAL = new Set(['succeeded', 'failed'])
+const taskRevision = (task: TaskRow) => `${task.updated_at}:${task.status}`
 
 // 合并轮询：所有未终态任务共用一个定时器，每 tick 用 GET /api/tasks?ids=... 一次
 // 批量拉回，请求数从「每任务一个」降到「每 tick 一个」。退避：基础间隔随连续轮询
@@ -26,6 +27,8 @@ export const useTasksStore = defineStore('tasks', {
     // Full payloads are loaded lazily through the active data source. Online list
     // responses omit large request/response snapshots and refs to keep transfers small.
     details: {} as Record<number, TaskRow>,
+    // 记录完整快照的版本；列表合并只更新状态，不能把旧响应标成最新。
+    detailRevisions: {} as Record<number, string>,
     loadedAt: 0 as number,
     loading: false as boolean,
     // 待轮询任务 id 集合（未终态）。
@@ -58,9 +61,12 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
     async loadDetail(id: number, force = false): Promise<TaskRow> {
-      if (!force && this.details[id]?.refs !== undefined) return this.details[id]
+      const summary = this.tasks.find((t) => t.id === id)
+      if (!force && this.details[id]?.refs !== undefined
+        && (!summary || this.detailRevisions[id] === taskRevision(summary))) return this.details[id]
       const task = await useDataSource().getTask(id)
       this.details = { ...this.details, [id]: task }
+      this.detailRevisions[id] = taskRevision(task)
       // Keep list status/result metadata synchronized without discarding the
       // full payload that was just cached.
       const idx = this.tasks.findIndex((t) => t.id === id)
@@ -97,6 +103,7 @@ export const useTasksStore = defineStore('tasks', {
       if (task.refs !== undefined) {
         // Detail/run endpoints return refs, which marks this as a full payload.
         this.details = { ...this.details, [task.id]: task }
+        this.detailRevisions[task.id] = taskRevision(task)
       } else if (detail) {
         // Poll/list summaries deliberately contain null request/response fields.
         // Offline polling returns complete IndexedDB rows, so accept newly
@@ -118,6 +125,7 @@ export const useTasksStore = defineStore('tasks', {
       this.tasks = this.tasks.filter((t) => t.id !== id)
       const { [id]: _removed, ...rest } = this.details
       this.details = rest
+      delete this.detailRevisions[id]
     },
     // 把 id 移出待轮询集合；集合空则停掉合并定时器。
     stopPoll(id: number) {
