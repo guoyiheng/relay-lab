@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildRequestPayload, type AdapterContext } from '../server/utils/adapters'
+import { buildRequestPayload, runAdapter, submitAsyncTask, type AdapterContext } from '../server/utils/adapters'
 
 describe('buildRequestPayload for doubao-video image (Seedream)', () => {
   const baseCtx: AdapterContext = {
@@ -111,6 +111,56 @@ describe('video duration normalization', () => {
 
   it('clamps invalid Seedance duration into the 4-30 second range', () => {
     const payload = buildRequestPayload('doubao-video', { ...baseCtx, params: { duration: 2 } })
+    expect(payload.duration).toBe(4)
+  })
+
+  it.each([-1, '-1'])('preserves automatic Seedance duration %s and adaptive ratio', (duration) => {
+    const payload = buildRequestPayload('doubao-video', {
+      ...baseCtx,
+      params: { ratio: 'adaptive', duration },
+    })
+    expect(payload).toMatchObject({ ratio: 'adaptive', duration: -1 })
+  })
+
+  it('keeps fixed output settings when a video is only used as reference', () => {
+    const payload = buildRequestPayload('doubao-video', {
+      ...baseCtx,
+      params: { ratio: '9:16', duration: 20 },
+      refs: { image: [], audio: [], video: [{ kind: 'video', public_url: 'https://example.com/reference.mp4' }] },
+    })
+    expect(payload).toMatchObject({ ratio: '9:16', duration: 20 })
+  })
+
+  it('sends identical automatic settings through in-process and queued submissions', async () => {
+    const ctx: AdapterContext = {
+      ...baseCtx,
+      params: { ratio: 'adaptive', duration: -1, resolution: '720p', use_asset_library: true },
+      segments: [
+        { type: 'text', text: 'Replace the character while preserving the input video.' },
+        { type: 'ref', asset: { kind: 'video', public_url: 'asset://video-1' } },
+      ],
+    }
+    // No remote ID ends the in-process adapter before polling.
+    const fetchMock = vi.fn().mockResolvedValue({})
+    vi.stubGlobal('$fetch', fetchMock)
+    try {
+      const payload = buildRequestPayload('doubao-video', ctx)
+      const result = await runAdapter('doubao-video', ctx)
+      await submitAsyncTask({ format: 'doubao-video', baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, kind: 'video', payload })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      for (const [, options] of fetchMock.mock.calls) {
+        expect(options.body).toEqual(payload)
+        expect(options.body).toMatchObject({ ratio: 'adaptive', duration: -1 })
+        expect(options.body).not.toHaveProperty('use_asset_library')
+      }
+      expect(result.request_payload).toEqual(payload)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('does not apply the Seedance sentinel to OpenAI video normalization', () => {
+    const payload = buildRequestPayload('openai-sync', { ...baseCtx, params: { duration: -1 } })
     expect(payload.duration).toBe(4)
   })
 })

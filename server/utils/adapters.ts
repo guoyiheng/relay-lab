@@ -476,30 +476,7 @@ async function runOpenAIAsync(ctx: AdapterContext): Promise<AdapterResult> {
 async function runDoubaoVideo(ctx: AdapterContext): Promise<AdapterResult> {
   const createUrl = joinUrl(ctx.baseUrl, 'contents/generations/tasks')
 
-  const ratio = (ctx.params.ratio as string) || '9:16'
-  const resolution = (ctx.params.resolution as string) || '480p'
-  const duration = normalizeVideoDuration(ctx.params.duration)
-  const generate_audio = ctx.params.generate_audio !== undefined ? !!ctx.params.generate_audio : true
-  const extra = { ...ctx.params }
-  // use_asset_library 是内部标志（是否把参考素材走 Seedance 素材库），不外发上游。
-  for (const k of ['ratio', 'resolution', 'duration', 'generate_audio', 'watermark', 'seed', 'return_last_frame', 'use_asset_library']) {
-    delete (extra as any)[k]
-  }
-
-  // Assemble multimodal content[] — ordered @-mention segments interleave text
-  // and refs; otherwise prompt-then-refs. (commit 277f351 shape).
-  const content = buildDoubaoContent(ctx)
-
-  const payload: Record<string, unknown> = {
-    model: ctx.modelId,
-    content,
-    ratio,
-    resolution,
-    duration,
-    generate_audio,
-    watermark: false,
-    ...extra,
-  }
+  const payload = buildRequestPayload('doubao-video', ctx)
 
   let createResp: any
   try {
@@ -732,7 +709,8 @@ export function buildRequestPayload(format: ApiFormat, ctx: AdapterContext): Rec
     }
     const ratio = (ctx.params.ratio as string) || '9:16'
     const resolution = (ctx.params.resolution as string) || '480p'
-    const duration = normalizeVideoDuration(ctx.params.duration)
+    // Seedance's automatic duration sentinel is required for video editing.
+    const duration = Number(ctx.params.duration) === -1 ? -1 : normalizeVideoDuration(ctx.params.duration)
     const generate_audio = ctx.params.generate_audio !== undefined ? !!ctx.params.generate_audio : true
     const extra = { ...ctx.params }
     for (const k of ['ratio', 'resolution', 'duration', 'generate_audio', 'watermark', 'seed', 'return_last_frame', 'use_asset_library']) {

@@ -60,6 +60,7 @@ const showAnyRefs = computed(() => {
 
 // Ordered: portrait → square → landscape, matching how creative tools display them
 const RATIOS = ['9:16', '3:4', '1:1', '4:3', '16:9'] as const
+const SEEDANCE_RATIOS = ['adaptive', ...RATIOS] as const
 const XAI_RATIOS = ['auto', '9:20', '9:19.5', '9:16', '1:2', '2:3', '3:4', '1:1', '4:3', '3:2', '2:1', '16:9', '19.5:9', '20:9'] as const
 const XAI_RESOLUTIONS = ['1k', '2k'] as const
 const VIDEO_RESOLUTIONS = ['480p', '720p', '1080p'] as const
@@ -69,6 +70,7 @@ const VIDEO_RESOLUTIONS = ['480p', '720p', '1080p'] as const
 const IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const
 // 常用时长快捷选项；其余 4–30 秒通过右侧输入框自定义。
 const DURATIONS = [5, 10, 15, 20, 30]
+const SEEDANCE_DURATIONS = [-1, ...DURATIONS]
 
 function patch(updates: Record<string, unknown>) {
   emit('update:modelValue', { ...props.modelValue, ...updates })
@@ -150,14 +152,14 @@ const imageResolution = computed(() => {
   return '1K'
 })
 const duration = computed(() => Number(props.modelValue.duration ?? 6))
-const durationDraft = ref(String(duration.value))
-watch(duration, (value) => { durationDraft.value = String(value) })
+const durationDraft = ref(duration.value === -1 ? '' : String(duration.value))
+watch(duration, (value) => { durationDraft.value = value === -1 ? '' : String(value) })
 function commitDuration() {
   const parsed = Number(durationDraft.value)
   const value = durationDraft.value.trim() && Number.isFinite(parsed)
     ? Math.min(30, Math.max(4, Math.round(parsed)))
     : duration.value
-  durationDraft.value = String(value)
+  durationDraft.value = value === -1 ? '' : String(value)
   patch({ duration: value })
 }
 const size = computed(() => String(props.modelValue.size ?? ''))
@@ -225,7 +227,7 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
         <div class="field-label">比例</div>
         <div class="flex flex-wrap gap-1.5">
           <button
-            v-for="r in RATIOS"
+            v-for="r in SEEDANCE_RATIOS"
             :key="r"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-[4px] border px-2 py-1 text-[12px] transition"
@@ -234,8 +236,8 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
               : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
             @click="patch({ ratio: r })"
           >
-            <AspectIcon :ratio="r" />
-            <span>{{ r }}</span>
+            <AspectIcon v-if="r !== 'adaptive'" :ratio="r" />
+            <span>{{ r === 'adaptive' ? '自动' : r }}</span>
           </button>
         </div>
       </div>
@@ -258,7 +260,7 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
         <div class="field-label">时长</div>
         <div class="flex flex-wrap items-center gap-1.5">
           <button
-            v-for="d in DURATIONS"
+            v-for="d in SEEDANCE_DURATIONS"
             :key="d"
             type="button"
             class="rounded-[4px] border px-2.5 py-1 text-[12px] transition"
@@ -266,10 +268,11 @@ onMounted(() => { isOffline.value = getDataMode() === 'offline' })
               ? 'border-primary-500 bg-primary-50 text-primary-700'
               : 'border-[var(--c-border)] bg-[var(--c-surface)] text-[var(--c-fg-3)] hover:border-[var(--c-fg-5)]'"
             @click="patch({ duration: d })"
-          >{{ d }}s</button>
+          >{{ d === -1 ? '自动' : `${d}s` }}</button>
           <label class="inline-flex items-center">
             <UInput
               :model-value="durationDraft"
+              :placeholder="duration === -1 ? '自动' : undefined"
               type="number"
               min="4"
               max="30"
