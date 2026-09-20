@@ -69,7 +69,7 @@ const VIDEO_RESOLUTIONS = ['480p', '720p', '1080p'] as const
 // Other ratios are computed against this longest side.
 const IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const
 // 常用时长快捷选项；其余 4–30 秒通过右侧输入框自定义。
-const DURATIONS = [5, 10, 15, 20, 30]
+const DURATIONS = [5, 10, 15, 20]
 const SEEDANCE_DURATIONS = [-1, ...DURATIONS]
 
 function patch(updates: Record<string, unknown>) {
