@@ -153,7 +153,9 @@ async function pollLoop(id: number, format: ApiFormat, kind: ModelKind, apiKey: 
       return
     }
     // continue / transient：未终态。超 maxMs 判超时失败，否则睡一觉再来。
-    if (now() - startedAt > maxMs) {
+    const latest = await idb.get<TaskRow>('tasks', id)
+    const resumedAt = Number((latest?.response_payload as any)?.poll_resumed_at) || 0
+    if (now() - Math.max(startedAt, resumedAt) > maxMs) {
       await finishTask(id, kind, {
         status: 'failed',
         response_payload: { poll_url: pollUrl, polls: outcome.kind === 'continue' ? [outcome.poll] : [] },
@@ -304,17 +306,22 @@ export async function syncOfflineTask(id: number): Promise<TaskRow> {
       response_payload: { poll_url: pollUrl, polls: [outcome.poll] },
     }, task.created_at)
   } else if (outcome.kind === 'error') {
-    await finishTask(id, task.kind, { ...outcome.result }, task.created_at)
+    throw new Error(outcome.result?.error_message || '上游状态查询失败')
   } else if (outcome.kind === 'continue') {
     const existing = (task.response_payload as any) || {}
-    const polls = Array.isArray(existing.polls) ? existing.polls : []
-    polls.push(outcome.poll)
-    await patchTask(id, {
-      response_payload: { ...existing, poll_url: pollUrl, polls },
-    })
+    const latest = await idb.get<OfflineTaskRecord>('tasks', id)
+    if (latest && !latest.deleted_at && latest.status !== 'succeeded') {
+      const checkedAt = now()
+      await patchTask(id, {
+        status: 'running', error_message: null, finished_at: null, latency_ms: null, http_status: null,
+        response_payload: { ...existing, poll_url: pollUrl, polls: [outcome.poll], poll_resumed_at: checkedAt },
+      })
+      if (task.status === 'failed') void pollLoop(id, task.api_format, task.kind, apiKey, pollUrl, checkedAt)
+    }
+  } else if (outcome.kind === 'transient') {
+    throw new Error('本次查询暂未获得上游状态，请稍后重试')
   }
 
   const updated = await idb.get<OfflineTaskRecord>('tasks', id)
   return hydrateOfflineTask(updated!)
 }
-

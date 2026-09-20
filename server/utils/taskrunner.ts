@@ -41,6 +41,30 @@ export interface TaskMessage {
   pollUrl?: string     // submit 阶段解析出的轮询 URL（poll 阶段带）
 }
 
+// 手动查询恢复的是已有远程任务，只恢复 poll，绝不能重复提交生成请求。
+export async function resumeTaskPolling(
+  taskId: number, pollUrl: string, startedAt: number,
+  waitUntil?: (p: Promise<unknown>) => void,
+) {
+  const message: TaskMessage = { taskId, phase: 'poll', pollUrl, startedAt }
+  const queue = useQueue()
+  if (queue) {
+    await queue.send(message, { delaySeconds: 5 })
+    return
+  }
+  const job = (async () => {
+    let next: TaskMessage = message
+    while (true) {
+      const result = await handleTaskMessage(next)
+      if (!result) return
+      await new Promise((resolve) => setTimeout(resolve, result.delaySeconds * 1000))
+      next = result.next
+    }
+  })().catch((err) => { console.error(`[taskrunner] resume poll #${taskId}:`, err) })
+  if (waitUntil) waitUntil(job)
+  else void job
+}
+
 // 参考素材走 Seedance 素材库的入库超时（prepare-assets 阶段累计上限）。
 const ASSET_INGEST_MAX_MS = 3 * 60 * 1000
 const ASSET_INGEST_GAP_S = 2
@@ -233,10 +257,10 @@ export async function handleTaskMessage(
   const db = useDb()
   // 重新解析 provider/model（密钥不落任务行，从 live 表取），并读回已落库的 request_payload。
   const row = await db.prepare(`
-    SELECT t.user_id, t.kind, t.api_format, t.request_payload, t.remote_task_id, t.status,
+    SELECT t.user_id, t.kind, t.api_format, t.request_payload, t.response_payload, t.remote_task_id, t.status,
            t.provider_id, t.model_id
     FROM tasks t WHERE t.id = ? AND t.deleted_at IS NULL
-  `).get(msg.taskId) as Pick<TaskRecord, 'user_id' | 'kind' | 'api_format' | 'request_payload' | 'remote_task_id' | 'status' | 'provider_id' | 'model_id'> | null
+  `).get(msg.taskId) as Pick<TaskRecord, 'user_id' | 'kind' | 'api_format' | 'request_payload' | 'response_payload' | 'remote_task_id' | 'status' | 'provider_id' | 'model_id'> | null
   if (!row) return null                              // 任务已删
   if (row.status === 'succeeded' || row.status === 'failed') return null  // 已终态
 
@@ -342,7 +366,10 @@ export async function handleTaskMessage(
   }
 
   // phase === 'poll'
-  const startedAt = msg.startedAt || Date.now()
+  // 手动查询可能已重新确认上游仍在运行；旧队列消息沿用恢复后的时间窗。
+  let resumedAt = 0
+  try { resumedAt = Number(JSON.parse(row.response_payload || '{}')?.poll_resumed_at) || 0 } catch { /* 兼容历史快照 */ }
+  const startedAt = Math.max(msg.startedAt || Date.now(), resumedAt)
   const pollUrl = msg.pollUrl
   if (!pollUrl) {  // 异常：poll 消息缺 pollUrl，退回 submit 重来
     return { next: { taskId: msg.taskId, phase: 'submit' }, delaySeconds: 1 }

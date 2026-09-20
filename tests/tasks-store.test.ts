@@ -105,4 +105,16 @@ describe('task detail response freshness', () => {
     store.remove(1)
     expect(store.detailRevisions[1]).toBeUndefined()
   })
+
+  it('resumes list polling when manual sync recovers a failed task', async () => {
+    const store = useTasksStore()
+    store.upsert(audioTask({ status: 'failed', error_message: 'timeout', finished_at: 200 }))
+    const recovered = audioTask({ updated_at: 300 })
+    vi.stubGlobal('useDataSource', () => ({ syncTask: vi.fn().mockResolvedValue(recovered) }))
+    await store.syncTask(1)
+    expect(store.detailById(1)?.status).toBe('running')
+    expect(store.detailById(1)?.error_message).toBeNull()
+    expect(store.polling.has(1)).toBe(true)
+    expect(store.pollTimer).not.toBeNull()
+  })
 })

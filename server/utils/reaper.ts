@@ -9,7 +9,7 @@ import { useDb, type TaskRecord, type ModelKind } from './db'
 // 存在，前端一直转圈。
 //
 // 这里补一道与执行链路解耦的时间兜底：任何一次读取任务时，对「running/pending
-// 且 created_at 已超过该 kind 的 maxMs + 宽限」的行，惰性 UPDATE 成 failed。
+// 且最后更新时间已超过该 kind 的 maxMs + 宽限」的行，惰性 UPDATE 成 failed。
 // 只要前端还在轮询（或用户刷新），僵尸任务就会在下一次读取时被判失败、转终态，
 // 前端随即停轮询。软失败，保留行与快照，符合项目「软删/快照」风格。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,9 +26,10 @@ function maxMsFor(kind: ModelKind): number {
 }
 
 // 判断一行是否已是僵尸（进行中且超过 maxMs+宽限）。
-export function isStaleRunning(row: Pick<TaskRecord, 'status' | 'kind' | 'created_at'>, now: number): boolean {
+export function isStaleRunning(row: Pick<TaskRecord, 'status' | 'kind' | 'created_at'> & { updated_at?: number }, now: number): boolean {
   if (row.status !== 'running' && row.status !== 'pending') return false
-  return now - row.created_at > maxMsFor(row.kind as ModelKind) + REAP_GRACE_MS
+  // 手动查询确认上游仍运行后会刷新 updated_at，不能立即按创建时间再次判失败。
+  return now - Math.max(row.created_at, row.updated_at || 0) > maxMsFor(row.kind as ModelKind) + REAP_GRACE_MS
 }
 
 // 惰性回收一批任务里的僵尸行：写 DB failed，并「就地」把传入行对象的状态字段
@@ -43,23 +44,28 @@ export async function reapStaleTasks<T extends Pick<TaskRecord, 'id' | 'status' 
   if (!stale.length) return []
   const ids = stale.map((r) => r.id)
   const msg = '执行超时：任务未在预期时间内回写结果（后台执行可能已中断）'
+  let reapedIds: number[]
   try {
     const db = useDb()
     const ph = ids.map(() => '?').join(',')
-    await db.prepare(
+    const reaped = await db.prepare(
       `UPDATE tasks SET status = 'failed', error_message = ?, updated_at = ?, finished_at = ?
-       WHERE user_id = ? AND id IN (${ph}) AND status IN ('running','pending') AND deleted_at IS NULL`,
-    ).run(msg, now, now, userId, ...ids)
+       WHERE user_id = ? AND id IN (${ph}) AND status IN ('running','pending') AND deleted_at IS NULL
+         AND MAX(created_at, updated_at) < ? - CASE WHEN kind = 'video' THEN ? ELSE ? END
+       RETURNING id`,
+    ).all(msg, now, now, userId, ...ids, now, VIDEO_MAX_MS + REAP_GRACE_MS, IMAGE_MAX_MS + REAP_GRACE_MS) as { id: number }[]
+    reapedIds = reaped.map((r) => r.id)
   } catch (err) {
     console.error('[reaper] 回收僵尸任务失败:', err)
     return []
   }
   // 就地改写传入行，调用方序列化即反映失败态（省一次回查）。
   for (const r of stale) {
+    if (!reapedIds.includes(r.id)) continue
     r.status = 'failed' as TaskRecord['status']
     if (!r.error_message) r.error_message = msg
     r.finished_at = now
     r.updated_at = now
   }
-  return ids
+  return reapedIds
 }

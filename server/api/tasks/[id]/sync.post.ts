@@ -3,7 +3,7 @@ import { serializeTask } from '~~/server/utils/serialize'
 import { loadTaskRefs } from '~~/server/utils/refs'
 import { requireUserId } from '~~/server/utils/auth'
 import { pollAsyncOnce, buildPollUrl } from '~~/server/utils/adapters'
-import { persistTerminal } from '~~/server/utils/taskrunner'
+import { persistTerminal, resumeTaskPolling } from '~~/server/utils/taskrunner'
 
 interface JoinedRow extends TaskRecord {
   provider_base_url: string | null
@@ -82,6 +82,10 @@ export default defineEventHandler(async (event) => {
   // 执行单次轮询判读
   const outcome = await pollAsyncOnce({ format: row.api_format, apiKey, pollUrl })
 
+  if (outcome.kind === 'transient') {
+    throw createError({ statusCode: 502, statusMessage: '本次查询暂未获得上游状态，请稍后重试' })
+  }
+
   if (outcome.kind === 'done') {
     await persistTerminal(
       row.id,
@@ -94,29 +98,24 @@ export default defineEventHandler(async (event) => {
       row.kind,
     )
   } else if (outcome.kind === 'error') {
-    await persistTerminal(
-      row.id,
-      {
-        ...outcome.result,
-        remote_task_id: row.remote_task_id,
-        response_payload: { poll_url: pollUrl, polls: [] },
-      },
-      Date.now() - row.created_at,
-      row.kind,
-    )
+    throw createError({ statusCode: 502, statusMessage: outcome.result.error_message || '上游状态查询失败' })
   } else if (outcome.kind === 'continue') {
-    // 上游仍在生成中：回写最新轮询快照
+    // running 是本次查询的权威结果，必须同时清掉本地超时终态。
+    let existingPayload: Record<string, unknown> = {}
     try {
-      const existingPayload = typeof row.response_payload === 'string'
-        ? JSON.parse(row.response_payload)
-        : (row.response_payload || {})
-      const polls = Array.isArray(existingPayload.polls) ? existingPayload.polls : []
-      polls.push(outcome.poll)
-      const updatedPayload = { ...existingPayload, poll_url: pollUrl, polls }
-      await db.prepare('UPDATE tasks SET response_payload = ?, updated_at = ? WHERE id = ? AND user_id = ?')
-        .run(JSON.stringify(updatedPayload), Date.now(), row.id, userId)
-    } catch (err) {
-      console.error(`[sync] 更新任务 #${row.id} response_payload 失败:`, err)
+      const parsed = row.response_payload ? JSON.parse(row.response_payload) : null
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) existingPayload = parsed
+    } catch { /* 旧快照损坏不应阻止状态恢复 */ }
+    const checkedAt = Date.now()
+    const updatedPayload = { ...existingPayload, poll_url: pollUrl, polls: [outcome.poll], poll_resumed_at: checkedAt }
+    const update = await db.prepare(`
+      UPDATE tasks SET status = 'running', error_message = NULL, finished_at = NULL,
+        latency_ms = NULL, http_status = NULL, response_payload = ?, updated_at = ?
+      WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND status != 'succeeded'
+    `).run(JSON.stringify(updatedPayload), checkedAt, row.id, userId)
+    if (update.changes && row.status === 'failed') {
+      const waitUntil = event.context.waitUntil?.bind(event.context)
+      await resumeTaskPolling(row.id, pollUrl, checkedAt, waitUntil)
     }
   }
 

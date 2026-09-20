@@ -76,7 +76,8 @@ export const useTasksStore = defineStore('tasks', {
     async syncTask(id: number): Promise<TaskRow> {
       const task = await useDataSource().syncTask(id)
       this.upsert(task)
-      if (TERMINAL.has(task.status)) this.polling.delete(id)
+      if (TERMINAL.has(task.status)) this.stopPoll(id)
+      else this.startPoll(id)
       return task
     },
     upsert(task: TaskRow) {
