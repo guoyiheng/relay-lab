@@ -19,7 +19,6 @@ const displayPrompt = computed(() => {
 
 // Fullscreen via shared global viewer (overview reference assets are clickable)
 const { open: openFullscreen } = useFullscreenViewer()
-const { isSyncing, syncTask } = useTaskSync()
 const notify = useNotify()
 const confirm = useConfirm()
 
@@ -402,20 +401,6 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
             <span class="kv-key">远程任务 ID</span>
             <span class="kv-val flex-1">{{ task.remote_task_id || '尚未生成' }}</span>
             <div class="flex items-center gap-1">
-              <button
-                type="button"
-                class="pill-btn"
-                :disabled="!task.remote_task_id || isSyncing(task.id)"
-                :title="task.remote_task_id ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
-                @click="syncTask(task)"
-              >
-                <UIcon
-                  :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
-                  class="h-3.5 w-3.5"
-                  :class="{ 'animate-spin': isSyncing(task.id) }"
-                />
-                {{ isSyncing(task.id) ? '正在拉取…' : '手动拉取视频' }}
-              </button>
               <button type="button" class="pill-btn" :class="copiedKey === 'remote' ? 'pill-btn-active' : ''" title="复制" @click="copyText(task.remote_task_id, 'remote')">
                 <UIcon :name="copiedKey === 'remote' ? 'i-carbon-checkmark' : 'i-carbon-copy'" class="h-3.5 w-3.5" /> {{ copiedKey === 'remote' ? '已复制' : '复制' }}
               </button>
@@ -687,24 +672,7 @@ const pollEndpoint = computed<{ method: string; url: string } | null>(() => {
       </section>
 
       <section v-if="!preview && task.error_message">
-        <div class="mb-2 flex items-center justify-between">
-          <div class="label-uppercase">错误</div>
-          <button
-            v-if="task.kind === 'video' && task.status !== 'succeeded'"
-            type="button"
-            class="pill-btn"
-            :disabled="!task.remote_task_id || isSyncing(task.id)"
-            :title="task.remote_task_id ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
-            @click="syncTask(task)"
-          >
-            <UIcon
-              :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
-              class="h-3.5 w-3.5"
-              :class="{ 'animate-spin': isSyncing(task.id) }"
-            />
-            {{ isSyncing(task.id) ? '正在拉取…' : '手动拉取视频' }}
-          </button>
-        </div>
+        <div class="label-uppercase mb-2">错误</div>
         <div class="rounded-[4px] border border-red-200 bg-red-50 px-3 py-2 font-mono text-[12px] text-red-700 whitespace-pre-wrap break-all">{{ task.error_message }}</div>
       </section>
     </div>

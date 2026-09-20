@@ -12,10 +12,6 @@ const resultUrls = computed<string[]>(() => taskResultUrls(props.task))
 
 // Fullscreen via shared global viewer (overlay + Esc handled globally)
 const { open: openFullscreen } = useFullscreenViewer()
-const { isSyncing, syncTask } = useTaskSync()
-
-const needsVideoFetch = computed(() => props.task?.kind === 'video' && props.task.status !== 'succeeded')
-const canFetchVideo = computed(() => needsVideoFetch.value && !!props.task?.remote_task_id)
 
 // Drag a generated result into the creation area's reference uploader.
 function onAssetDragStart(ev: DragEvent, url: string) {
@@ -166,25 +162,6 @@ function onVideoFullscreen(url: string) {
       <template v-else>
         <div class="text-[13px] text-[var(--c-fg-4)]">无结果</div>
       </template>
-
-      <!-- 视频只要尚未成功，就始终保留主动拉取入口；没有远程 ID 时保留按钮但置灰，
-           避免后台提交尚未落库或已丢失时用户误以为可以查询。 -->
-      <div v-if="needsVideoFetch" class="absolute bottom-5 left-0 right-0 flex justify-center px-5">
-        <button
-          type="button"
-          class="pill-btn inline-flex items-center gap-1.5 px-3 py-1.5"
-          :disabled="!canFetchVideo || isSyncing(task.id)"
-          :title="canFetchVideo ? '向平台主动拉取一次视频状态' : '暂无远程任务 ID，暂时无法拉取视频'"
-          @click="syncTask(task)"
-        >
-          <UIcon
-            :name="isSyncing(task.id) ? 'i-carbon-circle-dash' : 'i-carbon-download'"
-            class="h-4 w-4"
-            :class="{ 'animate-spin': isSyncing(task.id) }"
-          />
-          {{ isSyncing(task.id) ? '正在拉取…' : '手动拉取视频' }}
-        </button>
-      </div>
     </div>
   </div>
 
